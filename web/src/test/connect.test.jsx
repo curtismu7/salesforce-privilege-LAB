@@ -89,7 +89,11 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(screen.getByTestId("cert-cert-1")).toHaveTextContent("current");
     await user.click(screen.getByTestId("create-eca"));
     await screen.findByTestId("eca-title");
-    expect(screen.getByTestId("eca-active")).toHaveTextContent("not active yet");
+    expect(screen.getByTestId("eca-active")).toHaveTextContent("A new app can take up to 10 minutes to activate; waiting 2 to 10 minutes is the fix.");
+    expect(screen.getByTestId("eca-active")).not.toHaveTextContent(/not active yet|\bactive\b.*\bfrom\b/);
+    // only the two scopes the guide names
+    for (const gone of ["web", "full", "id"]) expect(screen.queryByTestId(`scope-${gone}`), gone).toBeNull();
+    expect(screen.getByTestId("scope-api").closest("fieldset")).toHaveTextContent("refresh_token, offline_access");
     // scopes, JWT bearer, certificate, Permitted Users
     await user.click(screen.getByTestId("scope-api"));
     await waitFor(() => expect(screen.getByTestId("scope-api")).toBeChecked());
@@ -114,6 +118,8 @@ describe("Connect page: the wizard rehearsal", () => {
     await user.click(screen.getByTestId("assign-btn"));
     await waitFor(() => expect(screen.getByTestId("checklist")).toHaveTextContent("6 of 6"));
     // too early: the same generic error, not propagated
+    expect(screen.getByTestId("request-code")).toHaveTextContent("Salesforce emails a verification code to the app's contact email");
+    expect(screen.queryByText(/Email me a verification code/)).toBeNull();
     await user.click(screen.getByTestId("request-code"));
     const mail = await screen.findByTestId("mailbox");
     const code = /Code (\d+)/.exec(mail.textContent)[1];

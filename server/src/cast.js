@@ -32,7 +32,7 @@ const pack = (o) => {
     castTakenUsername: `${o.a[1]}@${o.org}-other-org.example`,
     // permission sets
     castPermSet: 'Case Read Access', castPermSet2: 'Account Read Access', castIntegrationSet: 'Integration Access',
-    castLicensedSet: o.licensedSet, castOtherLicense: 'Chatter Free', castOtherLicenseSet: o.otherSet,
+    castLicensedSet: o.licensedSet, castOtherLicense: 'Cloud Integration User', castOtherLicenseSet: o.otherSet,
     // the three cases the engineer works (fictional titles and accounts; the P1 is the first)
     castCaseP1Title: o.cases[0][0], castCaseP1Account: o.cases[0][1], castCase2Title: o.cases[1][0], castCase2Account: o.cases[1][1], castCase3Title: o.cases[2][0], castCase3Account: o.cases[2][1],
     castConsumerKey: `3MVG9-MOCK-${o.org}-0001`, castKeyCode: String(100000 + (parseInt(createHash('sha256').update(`${o.org}|code`).digest('hex').slice(0, 8), 16) % 900000)),

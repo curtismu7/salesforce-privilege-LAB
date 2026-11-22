@@ -18,8 +18,8 @@ const POLICY_CHIP = {
   active: ["ok", "Active"],
   revoke_pending: ["warn", "Revoke pending, access still live"],
 };
-const RECEIPT_STATE = { Granted: "ok", Revoked: "none" };
-const COUNTS = [["confirmed", "Confirmed"], ["revokePending", "Revoke pending"]];
+const RECEIPT_STATE = { Granted: "ok", "Expired / Revoked": "none" };
+const COUNTS = [["confirmed", "Confirmed"]];
 
 function GrantDialog({ lab, app, linked, sets, assignments, sfUsers, onClose }) {
   const { act, busy } = lab;
@@ -123,15 +123,16 @@ export default function GrantPage({ lab }) {
                 <tr key={p.id} data-testid={`policy-${p.id}`}>
                   <td><code>{p.id}</code></td><td>{visible(p.userName)}</td><td>{visible(p.setLabel)}</td>
                   <td>{t(p.endAtIso)} UTC</td>
-                  <td><Chip state={state2} testId={`policy-status-${p.id}`}>{text}</Chip>{p.lastError && <div className="field-error" role="note">Could not remove yet: {visible(p.lastError)}</div>}</td>
+                  <td><Chip state={state2} testId={`policy-status-${p.id}`}>{text}</Chip></td>
                   <td><button type="button" className="danger-text" disabled={busy || p.status !== "active"} onClick={() => act("policy.delete", { policyId: p.id })} data-testid={`delete-${p.id}`}>Delete policy</button></td>
                 </tr>
               );
             })}</tbody>
           </table></div>
         )}
+        <p className="muted" data-testid="queued-note">In the guide the removal is queued and a refresh shows it: press Refresh receipts.</p>
         <p className="muted">Delete is the three-dot menu on a policy: it removes only that policy and its grant. The red Delete on the app, which removes the whole Salesforce connection, is not modelled.</p>
-        {ended.length > 0 && <p className="muted" data-testid="ended-count">Expired / Revoked: {ended.length} ({ended.map((p) => `${p.id} revoked`).join(", ")})</p>}
+        {ended.length > 0 && <p className="muted" data-testid="ended-count">Expired / Revoked: {ended.length} ({ended.map((p) => `${p.id} removed`).join(", ")})</p>}
       </Card>
 
       <Card kicker="Access Receipts" title={`Receipts (${pv.receipts.length})`} testId="receipts">
@@ -149,14 +150,14 @@ export default function GrantPage({ lab }) {
       </Card>
 
       <Card kicker="Reconciliation" title="What Privilege believes after a refresh" testId="reconcile-card">
-        {!rec ? <p className="muted" data-testid="no-reconcile">Not reconciled yet. Refresh receipts (or Sync) compares the policies with the assignments Salesforce reports.</p> : (
+        {!rec ? <p className="muted" data-testid="no-reconcile">Not reconciled yet. Refresh receipts compares the policies with the assignments Salesforce reports.</p> : (
           <>
             <CardGrid stats>
               {COUNTS.map(([k, label]) => (
                 <div key={k} className="card card--neutral stat" data-testid={`count-${k}`}><span className="kicker">{label}</span><span className="stat__n">{rec.counts[k]}</span></div>
               ))}
             </CardGrid>
-            <p className="muted" data-testid="rec-line">Reconciled {t(rec.atIso)} UTC: {rec.counts.confirmed} confirmed. Policies: {rec.policies.active} active, {rec.policies.revokePending} revoke pending, {rec.policies.expiredRevoked} Expired / Revoked.</p>
+            <p className="muted" data-testid="rec-line">Reconciled {t(rec.atIso)} UTC: {rec.counts.confirmed} confirmed. Policies: {rec.policies.active} active, {rec.policies.expiredRevoked} Expired / Revoked.</p>
           </>
         )}
       </Card>

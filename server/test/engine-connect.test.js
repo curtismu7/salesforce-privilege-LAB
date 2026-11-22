@@ -128,8 +128,9 @@ test('the wizard order holds: org URL, then key, then sign-in, then create; one 
   assert.equal(attempt(e, 'wizard.signIn', { consumerKey: 'a', username: 'b' }).code, 'key_first');
   assert.equal(attempt(e, 'wizard.regenerateKey').code, 'key_first');
   assert.equal(attempt(e, 'app.create', { name: 'Salesforce' }).code, 'sign_in_first');
-  assert.equal(attempt(e, 'wizard.orgUrl', { url: 'https://other-org-dev-ed.develop.lightning.force.example/' }).code, 'org_unreachable');
-  assert.equal(attempt(e, 'wizard.orgUrl', { url: 'https://other-org-dev-ed.develop.lightning.force.example/' }).status, 502);
+  assert.equal(attempt(e, 'wizard.orgUrl', { url: 'https://other-org-dev-ed.develop.lightning.force.example/' }).code, 'not_an_org_url');
+  assert.equal(attempt(e, 'wizard.orgUrl', { url: 'https://other-org-dev-ed.develop.lightning.force.example/' }).status, 400);
+  assert.ok(!('org_unreachable' in OUTCOMES) && !/org_unreachable/.test(JSON.stringify(attempt(e, 'wizard.orgUrl', { url: 'https://other-org-dev-ed.develop.lightning.force.example/' }))), 'the invented org_unreachable answer is gone');
   assert.equal(attempt(e, 'wizard.orgUrl', { url: 'http://x.example' }).code, 'not_an_org_url');
   assert.equal(attempt(e, 'wizard.orgUrl', { url: 'https://evil.invalid/' }).code, 'not_an_org_url');
   const ok = run(e, 'wizard.orgUrl', { url: `https://${C.castOrg}-dev-ed.develop.my.salesforce-setup.example/lightning/setup/SetupOneHome/home` });

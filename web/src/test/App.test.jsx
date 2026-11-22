@@ -240,6 +240,19 @@ describe("fix pass: no label chips anywhere and a toggle that is never silent", 
     expect(pressed("mode-real")).toBe("true"); // nothing changed
   });
 
+  it("the Support P1 intro is shown only on the Support P1 page; every other page has its own one line (or none)", async () => {
+    const user = await h.mount();
+    const support = text("head-intro");
+    expect(support).toMatch(/^Support P1: a support engineer starts with no access/);
+    for (const p of ["Scenarios", "Connect", "Link", "Grant and revoke", "Diagram"]) {
+      await nav(user, p);
+      const intro = text("head-intro");
+      expect(intro, p).not.toBe(support); expect(intro, p).not.toMatch(/Support P1: a support engineer/); expect(intro.split(". ").length, p).toBeLessThanOrEqual(2);
+    }
+    await nav(user, "Real");
+    expect(screen.queryByTestId("head-intro")).toBeNull();
+  });
+
   it("in Real mode the page intro no longer says everything runs against a mock org", async () => {
     await h.mount({ real: fakeReal() });
     expect(text("head-intro")).toMatch(/^Real mode: one read-only look/);

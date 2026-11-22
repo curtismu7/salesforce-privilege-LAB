@@ -43,13 +43,18 @@ describe("Support P1 page: three panels together", () => {
     expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
     expect(text("support-last-request")).toMatch(/Omar Reyes asked for Case Read Access until 2026-11-02 11:\d\d UTC/);
     expect(text("support-last-note")).toBe("P1: need the case history");
+    // the engineer's request lives in the engineer's own card, never in the Privilege panel (Privilege does not store it in this lab)
+    expect(within(screen.getByTestId("request-card")).getByTestId("support-last-note")).toBeInTheDocument();
+    expect(screen.getByTestId("request-card")).toHaveTextContent("the lab's own step; Privilege does not store it in this lab");
+    expect(within(screen.getByTestId("privilege-panel")).queryByTestId("support-last-note")).toBeNull();
+    expect(screen.getByTestId("privilege-panel").textContent).not.toContain("P1: need the case history");
     expect(text("support-policy-status")).toBe("Active");
     expect(text("support-receipts")).toMatch(/Granted/);
     expect(text("support-confirmed")).toBe("1 confirmed");
     expect(screen.getByTestId("support-hint")).toHaveTextContent("Another request now would be refused: Already has this permission set");
   });
 
-  it("End access deletes the policy: Revoke pending, access still live (Cases still listed), then the assignment is gone and Cases is denied again; the receipt shows Granted then Revoked", async () => {
+  it("End access deletes the policy: the policy reads Revoke pending and the cases stay listed until Refresh receipts is pressed (no auto-refresh); then Cases is denied and the receipt reads Granted then Expired / Revoked", async () => {
     const user = await h.mount();
     await ready();
     await request(user);
@@ -57,17 +62,38 @@ describe("Support P1 page: three panels together", () => {
     await user.click(screen.getByTestId("support-end-access"));
     await waitFor(() => expect(text("support-policy-status")).toBe("Revoke pending, access still live"));
     expect(screen.getByTestId("cases-list")).toBeInTheDocument(); // still live
-    expect(text("support-receipts")).toMatch(/Granted\s*then\s*Revoke pending, access still live/);
+    expect(text("support-receipts")).toMatch(/Granted$/); // the receipt never reads a pending status
+    expect(text("support-receipts")).not.toMatch(/Revoke pending|Revoked|then/);
+    expect(screen.getByTestId("support-refresh-note")).toHaveTextContent("In the guide the removal is queued and a refresh shows it.");
+    // mutant W01: pending keeps beat 2 (access for the job), and nothing refreshes by itself
+    expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
+    expect(screen.getByTestId("beat-3")).not.toHaveAttribute("aria-current");
+    await new Promise((r) => setTimeout(r, 3500));
+    expect(text("support-policy-status")).toBe("Revoke pending, access still live");
+    expect(screen.getByTestId("cases-list")).toBeInTheDocument();
+    expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
     expect(h.lab.calls.filter((c) => c.path === "/api/actions").map((c) => c.body.op)).toEqual(["support.requestAccess", "policy.delete"]);
-    await screen.findByTestId("cases-denied", {}, { timeout: 8000 }); // the page refreshes on its own after a moment
+    await user.click(screen.getByTestId("support-refresh"));
+    await screen.findByTestId("cases-denied");
+    expect(h.lab.calls.filter((c) => c.path === "/api/actions").map((c) => c.body.op)).toEqual(["support.requestAccess", "policy.delete", "app.reconcile"]);
     expect(text("sf-held")).toBe("none");
-    expect(text("support-receipts")).toMatch(/Granted\s*then\s*Revoke pending, access still live\s*then\s*Revoked/);
+    expect(text("support-receipts")).toMatch(/Granted\s*then\s*Expired \/ Revoked$/);
     expect(text("support-policy")).toBe("No active policy.");
     expect(text("support-confirmed")).toBe("0 confirmed");
     expect(screen.getByTestId("beat-3")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("support-end-access")).toBeDisabled();
     expect(document.querySelector("main").textContent).not.toContain(C.castCaseP1Title);
   }, 30000);
+
+  it("the value line is near the top, and the end-time note says nothing ends a grant by itself", async () => {
+    await h.mount();
+    await ready();
+    expect(text("support-value")).toBe("No standing access before or after; every grant has an end date and a receipt.");
+    expect(text("support-end-note")).toBe('In this lab nothing ends a grant by itself; the end time is the "until" date on the receipt.');
+    expect(screen.getByTestId("request-card")).toHaveTextContent("these choices are the lab's own");
+    const sup = screen.getByTestId("support-intro");
+    expect(sup.compareDocumentPosition(screen.getByTestId("sf-panel")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 
   it("The old way is marked as narrative, not a Privilege claim, and does not change with the engine", async () => {
     const user = await h.mount();
@@ -135,7 +161,7 @@ describe("Support P1 page: three panels together", () => {
     await ready();
     expect(screen.getByTestId("support-request")).toBeDisabled();
     const opts = [...screen.getByTestId("support-end").options].map((o) => o.textContent);
-    expect(opts).toHaveLength(5); expect(opts[0]).toMatch(/^1 hour: until 2026-11-02 \d\d:\d\d$/);
+    expect(opts).toHaveLength(5); expect(opts[0]).toMatch(/^1 hour: until 2026-11-02 \d\d:\d\d UTC$/);
   });
 
   it("the vertical changes the case titles and names, not the mechanics", async () => {

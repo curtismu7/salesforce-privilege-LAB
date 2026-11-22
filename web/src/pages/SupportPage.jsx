@@ -7,7 +7,6 @@ import { Card, Chip, Loading, Outcome, ReadOnlyNotice, serverProblem } from "../
 
 const END_CHOICES = [[1, "1 hour"], [2, "2 hours"], [4, "4 hours"], [8, "8 hours"], [24, "1 day"]];
 const PENDING = "Revoke pending, access still live";
-const REFRESH_MS = 2500;
 const PRIORITY_STATE = { P1: "bad", P2: "warn", P3: "info" };
 
 // (a) The engineer's own Salesforce view. Denied shows no case title and no count; the cases come only from the server when the assignment exists.
@@ -62,10 +61,8 @@ export default function SupportPage({ lab }) {
   const [hours, setHours] = useState(2);
   const [refusal, setRefusal] = useState(null);
   const [prepError, setPrepError] = useState(null);
-  const refreshed = useRef(new Set());
   const prepared = useRef(false);
   const support = state?.support;
-  const pending = support?.access?.status === "revoke_pending" ? support.access.policyId : null;
   const pristine = Boolean(state) && state.audit.length <= 1;
 
   // First visit in a fresh world: start from the story's own starting point (an org connected to Privilege, the engineer linked).
@@ -74,16 +71,6 @@ export default function SupportPage({ lab }) {
     prepared.current = true;
     runScenario("support-p1", 0).then((r) => { if (!r.ok) setPrepError(r.message); });
   }, [source, state, support?.ready, pristine]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Revoke pending is shown for a moment, then the page asks for a refresh once per policy (a failed refresh is shown and not repeated).
-  useEffect(() => {
-    if (!pending || refreshed.current.has(pending)) return undefined;
-    const id = setTimeout(() => {
-      refreshed.current.add(pending);
-      act("app.reconcile").then((r) => setRefusal(r.ok ? null : r));
-    }, REFRESH_MS);
-    return () => clearTimeout(id);
-  }, [pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (source === "real") return <ReadOnlyNotice host={lab.info?.realHost} />;
   if (!state || !story) return <Loading />;
@@ -119,6 +106,7 @@ export default function SupportPage({ lab }) {
   return (
     <div className="stack">
       <Card kicker="Support P1" title="A support engineer, a P1, and access for the job only" testId="support-intro">
+        <p className="lesson" data-testid="support-value">No standing access before or after; every grant has an end date and a receipt.</p>
         <ol className="beats" aria-label="The three beats" data-testid="beats">
           {BEATS.map((b, i) => <li key={b} data-testid={`beat-${i + 1}`} aria-current={beat === i + 1 ? "step" : undefined}><span className="step-num" aria-hidden="true">{i + 1}</span>{b}</li>)}
         </ol>
@@ -128,20 +116,27 @@ export default function SupportPage({ lab }) {
             <div className="seg"><button type="button" disabled={busy} onClick={prepare} data-testid="support-prepare">Set the scene (replaces this world)</button></div>
           </div>
         )}
-        <div className="form" aria-label="Request access">
-          <label>Note for the request ({note.length} of 200)
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} aria-label="Note" data-testid="support-note" spellCheck="false" disabled={!support.ready} />
-          </label>
-          <label>End time (lab clock, UTC)
-            <select value={hours} onChange={(e) => setHours(Number(e.target.value))} aria-label="End time" data-testid="support-end" disabled={!support.ready}>
-              {END_CHOICES.map(([h, text]) => <option key={h} value={h}>{text}: until {t(new Date(base + h * 3600_000).toISOString())}</option>)}
-            </select>
-          </label>
-          <div className="seg">
-            <button type="button" className="primary" disabled={busy || !support.ready || !note.trim()} onClick={request} data-testid="support-request">Request access</button>
-            <button type="button" className="danger-text" disabled={busy || !policy || policy.status !== "active"} onClick={end} data-testid="support-end-access">End access</button>
+        <section className="panel" aria-labelledby="request-title" data-testid="request-card">
+          <h3 className="panel__sub" id="request-title">The engineer's request (the lab's own step; Privilege does not store it in this lab)</h3>
+          <div className="form" aria-label="Request access">
+            <label>Note for the request ({note.length} of 200)
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} rows={2} aria-label="Note" data-testid="support-note" spellCheck="false" disabled={!support.ready} />
+            </label>
+            <label>End time (the engineer's request; these choices are the lab's own)
+              <select value={hours} onChange={(e) => setHours(Number(e.target.value))} aria-label="End time" data-testid="support-end" disabled={!support.ready}>
+                {END_CHOICES.map(([h, text]) => <option key={h} value={h}>{text}: until {t(new Date(base + h * 3600_000).toISOString())} UTC</option>)}
+              </select>
+            </label>
+            <p className="muted" data-testid="support-end-note">In this lab nothing ends a grant by itself; the end time is the "until" date on the receipt.</p>
+            <div className="seg">
+              <button type="button" className="primary" disabled={busy || !support.ready || !note.trim()} onClick={request} data-testid="support-request">Request access</button>
+              <button type="button" className="danger-text" disabled={busy || !policy || policy.status !== "active"} onClick={end} data-testid="support-end-access">End access</button>
+            </div>
           </div>
-        </div>
+          {last ? (
+            <p data-testid="support-last-request">Latest request: {visible(last.by)} asked for {visible(support.permissionSet)} until {t(last.endAt)} UTC: <q data-testid="support-last-note">{visible(last.note)}</q></p>
+          ) : <p className="muted" data-testid="support-no-request">No request yet.</p>}
+        </section>
       </Card>
 
       <div className="cols3">
@@ -149,22 +144,19 @@ export default function SupportPage({ lab }) {
 
         <section className="card" data-testid="privilege-panel" aria-labelledby="privilege-title">
           <p className="kicker">PingOne Privilege (mock)</p>
-          <h2 className="card__title" id="privilege-title">The request, the policy and the receipt</h2>
-          <h3 className="panel__sub">Latest request</h3>
-          {last ? (
-            <p data-testid="support-last-request">{visible(last.by)} asked for {visible(support.permissionSet)} until {t(last.endAt)} UTC: <q data-testid="support-last-note">{visible(last.note)}</q></p>
-          ) : <p className="muted" data-testid="support-no-request">No request yet.</p>}
+          <h2 className="card__title" id="privilege-title">The policy, the receipts and the reconciliation</h2>
           <h3 className="panel__sub">Policy</h3>
           <p data-testid="support-policy">{policy ? <><code>{policy.policyId}</code> <Chip state={policy.status === "active" ? "ok" : "warn"} testId="support-policy-status">{policy.status === "active" ? "Active" : PENDING}</Chip> until {t(policy.endAt)} UTC</> : <span className="muted">No active policy.</span>}</p>
           <h3 className="panel__sub">Access Receipts</h3>
           {receipts.length === 0 ? <p className="muted" data-testid="support-no-receipt">No receipts yet.</p> : (
             <ul className="plain receipts" data-testid="support-receipts">{receipts.map((r) => (
               <li key={r.id} data-testid={`support-receipt-${r.id}`}><code>{r.id}</code> {visible(r.setLabel)}, until {t(r.endAtIso)} UTC:{" "}
-                {r.history.map((h, i) => <span key={`${h.status}-${i}`}>{i > 0 && " then "}<Chip state={h.status === "Granted" ? "ok" : h.status === "Revoked" ? "none" : "warn"}>{h.status}</Chip></span>)}</li>
+                {r.history.map((h, i) => <span key={`${h.status}-${i}`}>{i > 0 && " then "}<Chip state={h.status === "Granted" ? "ok" : "none"}>{h.status}</Chip></span>)}</li>
             ))}</ul>
           )}
-          <p data-testid="support-rec">{rec ? <>Reconciliation, {t(rec.atIso)} UTC: <strong data-testid="support-confirmed">{rec.counts.confirmed} confirmed</strong>{rec.counts.revokePending > 0 && <>, {rec.counts.revokePending} revoke pending</>}.</> : <span className="muted">Not reconciled yet.</span>}</p>
+          <p data-testid="support-rec">{rec ? <>Reconciliation, {t(rec.atIso)} UTC: <strong data-testid="support-confirmed">{rec.counts.confirmed} confirmed</strong>.</> : <span className="muted">Not reconciled yet.</span>}</p>
           <div className="seg"><button type="button" disabled={busy || !pv.app} onClick={() => act("app.reconcile").then((r) => setRefusal(r.ok ? null : r))} data-testid="support-refresh">Refresh receipts</button></div>
+          <p className="muted" data-testid="support-refresh-note">In the guide the removal is queued and a refresh shows it.</p>
           {hint && <p className="muted" data-testid="support-hint">Another request now would be refused: {visible(hint)}</p>}
           {refusal && (
             <div className="field-error" role="alert" data-testid="support-refusal">

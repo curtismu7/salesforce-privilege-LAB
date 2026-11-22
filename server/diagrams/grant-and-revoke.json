@@ -74,8 +74,8 @@
     },
     {
       "source": "priv",
-      "target": "rec",
-      "label": "Receipt: Revoke pending, access still live"
+      "target": "sf",
+      "label": "Policy: Revoke pending, access still live"
     },
     {
       "source": "priv",
@@ -85,7 +85,7 @@
     {
       "source": "priv",
       "target": "rec",
-      "label": "Receipt: Revoked"
+      "label": "Receipt: Expired / Revoked"
     }
   ],
   "steps": [
@@ -119,7 +119,7 @@
     },
     {
       "title": "Revoke pending, access still live",
-      "what": "The receipt reads Revoke pending, access still live, and the assignment is still in Salesforce.",
+      "what": "The policy reads Revoke pending, access still live for a moment, and the assignment is still in Salesforce. The removal is queued; a refresh shows it.",
       "edges": [
         4
       ]
@@ -132,7 +132,7 @@
       ]
     },
     {
-      "title": "The receipt reads Revoked",
+      "title": "The receipt reads Expired / Revoked",
       "what": "Access Receipts shows the policy under Expired / Revoked.",
       "edges": [
         6

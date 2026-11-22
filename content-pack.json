@@ -64,7 +64,7 @@
     {
       "id": "policy-delete",
       "term": "Revoke by deleting the policy",
-      "definition": "There is no Revoke button: deleting the policy shows \"Revoke pending, access still live\", then the assignment is gone in Salesforce and the policy count drops to 0.",
+      "definition": "There is no Revoke button: deleting the policy shows \"Revoke pending, access still live\" on the policy. In the guide the removal is queued and a refresh shows it: the assignment is gone in Salesforce and the policy count drops to 0.",
       "aliases": [
         "revoke pending"
       ]
@@ -72,7 +72,7 @@
     {
       "id": "receipt",
       "term": "Receipt and reconciliation",
-      "definition": "Access Receipts shows user, set, end date and status (Granted, then Revoke pending, then Revoked); the reconciliation line reads 1 confirmed while Salesforce holds the assignment.",
+      "definition": "Access Receipts shows user, set, end date and status Granted, and later the guide's Expired / Revoked counter; the reconciliation line reads 1 confirmed while Salesforce holds the assignment.",
       "aliases": [
         "access receipt"
       ]
@@ -141,7 +141,7 @@
     {
       "id": "try-fail-not-propagated",
       "label": "Scenario 4: Sign-in fails: not propagated yet",
-      "description": "Everything is right, but the app is a minute old. invalid_grant, \"user hasn't approved this consumer\", until the lab clock has moved forward a few minutes.",
+      "description": "Everything is right, but the app was only just created. invalid_grant, \"user hasn't approved this consumer\", until the lab clock has moved forward a few minutes.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -274,7 +274,7 @@
     {
       "id": "page-support",
       "label": "Support P1: the story",
-      "description": "Three panels together: the engineer's Salesforce view, Privilege, and \"The old way\". Request access with a note and an end time, work the P1, End access; Cases goes from denied, to three cases, to denied again, and the receipt shows Granted then Revoked.",
+      "description": "Three panels together: the engineer's Salesforce view, Privilege, and \"The old way\". Request access (the engineer's note and end time are the lab's own step), work the P1, End access, Refresh receipts; Cases goes from denied, to three cases, to denied again, and the receipt shows Granted then Expired / Revoked.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -332,7 +332,7 @@
     {
       "id": "page-grant",
       "label": "Grant and revoke",
-      "description": "Grant a permission set with a duration, watch the receipt and the reconciliation, then delete the policy: Revoke pending, access still live, then gone.",
+      "description": "Grant a permission set with a duration, watch the receipt and the reconciliation, then delete the policy: the policy reads Revoke pending, access still live, and Refresh receipts shows it gone.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -426,7 +426,7 @@
     {
       "id": "S04",
       "title": "Sign-in fails: not propagated yet",
-      "say": "Everything is right, but the app is a minute old. invalid_grant, \"user hasn't approved this consumer\", until the lab clock has moved forward a few minutes."
+      "say": "Everything is right, but the app was only just created. invalid_grant, \"user hasn't approved this consumer\", until the lab clock has moved forward a few minutes."
     },
     {
       "id": "S05",

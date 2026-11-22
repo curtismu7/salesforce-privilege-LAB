@@ -3,7 +3,7 @@ import { visible } from "../safeText";
 import { t } from "../fmt";
 import { Card, Chip, HOT, Json, LabClock, LastAction, Loading, Outcome, ReadOnlyNotice, serverProblem } from "../components/Bits.jsx";
 
-const SCOPE_TEXT = { api: "api", refresh_token: "refresh_token, offline_access", web: "web", full: "full", id: "id" };
+const SCOPE_TEXT = { api: "api", refresh_token: "refresh_token, offline_access" };
 
 function Checklist({ items }) {
   const done = items.filter((i) => i.done).length;
@@ -146,7 +146,7 @@ export default function ConnectPage({ lab }) {
               <dl className="kv">
                 <dt>Name</dt><dd data-testid="eca-title">{visible(eca.name)}</dd>
                 <dt>Distribution</dt><dd>{eca.distribution}</dd>
-                <dt>Activates</dt><dd data-testid="eca-active">{eca.active ? <Chip state="ok">active</Chip> : <Chip state="warn">not active yet</Chip>} created {t(eca.createdAt)} UTC; it can take up to 10 minutes to activate (waiting 2 to 10 minutes is the fix)</dd>
+                <dt>Activation</dt><dd data-testid="eca-active">Created {t(eca.createdAt)} UTC. A new app can take up to 10 minutes to activate; waiting 2 to 10 minutes is the fix.</dd>
                 <dt>Consumer Key</dt><dd data-testid="eca-key">{reveal ? <><code>{visible(reveal)}</code> <span className="muted">{visible(eca.consumerKeyNote)}</span></> : <span className="muted">{visible(eca.consumerKeyNote)}</span>}</dd>
               </dl>
 
@@ -207,9 +207,9 @@ export default function ConnectPage({ lab }) {
               </fieldset>
 
               <fieldset className="fieldset"><legend>Settings, OAuth Settings: Consumer Key and Secret</legend>
-                <p className="muted">Salesforce emails a verification code first. The mailbox below is a MOCK: nothing is sent. Copy only the Consumer Key; the Consumer Secret is not used.</p>
+                <p className="muted">Salesforce emails a verification code to the app's contact email before it shows the Consumer Key. The mailbox below is a MOCK: nothing is sent. Copy only the Consumer Key; the Consumer Secret is not used.</p>
                 <div className="seg">
-                  <button type="button" disabled={off} onClick={() => act("sf.requestKeyCode")} data-testid="request-code">Email me a verification code</button>
+                  <button type="button" disabled={off} onClick={() => act("sf.requestKeyCode")} data-testid="request-code">Salesforce emails a verification code to the app's contact email</button>
                   <label className="inline">Code <input value={code} onChange={(e) => setCode(e.target.value)} aria-label="Verification code" data-testid="code" inputMode="numeric" maxLength={12} /></label>
                   <button type="button" disabled={off || !code.trim()} onClick={() => act("sf.revealConsumerKey", { code })} data-testid="reveal-key">Show Consumer Key</button>
                   {reveal && <button type="button" onClick={() => setConsumerKey(reveal)} data-testid="use-key">Use it in the wizard form</button>}

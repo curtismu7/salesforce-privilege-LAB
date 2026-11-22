@@ -33,7 +33,7 @@ test('a request with a note and an end time: Privilege grants it, the engineer s
   assert.equal(s.cases[0].title, C.castCaseP1Title);
   assert.equal(s.access.status, 'active'); assert.equal(s.requests.length, 1);
   assert.deepEqual(e.snapshot().privilege.receipts.map((x) => x.status), ['Granted']);
-  assert.deepEqual(e.snapshot().privilege.reconcile.counts, { confirmed: 1, revokePending: 0 });
+  assert.deepEqual(e.snapshot().privilege.reconcile.counts, { confirmed: 1 });
 });
 
 test('visibility is DERIVED from the assignment: delete the policy and Cases is still visible while Revoke pending, then gone; nothing else changes it', () => {
@@ -49,10 +49,10 @@ test('visibility is DERIVED from the assignment: delete the policy and Cases is 
   run(e, 'policy.delete', { policyId: pid });
   assert.equal(sup(e).canSeeCases, true, 'Revoke pending, access still live');
   assert.equal(sup(e).access.status, 'revoke_pending');
-  assert.deepEqual(e.snapshot().privilege.receipts.map((x) => x.status), ['Revoke pending, access still live']);
+  assert.deepEqual(e.snapshot().privilege.receipts.map((x) => x.status), ['Granted'], 'only the policy reads pending');
   run(e, 'app.reconcile');
   assert.equal(sup(e).canSeeCases, false); assert.equal(sup(e).cases, null); assert.equal(sup(e).access, null);
-  assert.deepEqual(e.snapshot().privilege.receipts.map((x) => x.status), ['Revoked']);
+  assert.deepEqual(e.snapshot().privilege.receipts.map((x) => x.status), ['Expired / Revoked']);
   assert.ok(!JSON.stringify(e.snapshot()).includes(C.castCaseP1Title));
 });
 
@@ -92,14 +92,49 @@ test('the note is bounded and inert: HTML, bidi and zero-width characters, __pro
   assert.equal(sup(g).requests.length, 0); assert.equal(sup(g).canSeeCases, false); assert.equal(g.snapshot().privilege.policies.length, 0, 'a refused request changes nothing');
 });
 
-test('the end time must be a date and time after the lab clock now and within 366 days; a refusal changes nothing', () => {
+test('the end time must be an ISO 8601 date and time with Z or an offset, on a whole lab minute, after the lab clock now and within 366 days; a refusal changes nothing', () => {
   const e = ready();
   const nowIso = new Date(LAB_START + e.snapshot().clock.nowMin * 60000).toISOString();
-  for (const bad of ['', 'tomorrow', 'x'.repeat(41), nowIso, '2026-11-02T09:00:00Z', '2025-01-01T00:00:00Z', '2030-01-01T00:00:00Z', 7, null, undefined]) {
-    const x = request(e, { endAt: bad }); assert.equal(x.ok, false, String(bad)); assert.equal(x.code, 'bad_end_time');
+  for (const bad of ['', 'tomorrow', 'x'.repeat(41), nowIso, '2026-11-02T09:00:00Z', '2025-01-01T00:00:00Z', '2030-01-01T00:00:00Z', 7, null, undefined,
+    '2026-11-02 11:00:00', '2026-11-02T11:00:00', '2026-11-02', '11/02/2026 11:00', '2026-11-02T11:00', 'Nov 2 2026 11:00 UTC', '2026-11-02T11:00:00 Z', '2026-02-31T11:00:00Z',
+    '2026-11-02T11:00:30Z', '2026-11-02T11:00:00.500Z']) {
+    const x = request(e, { endAt: bad }); assert.equal(x.ok, false, String(bad)); assert.equal(x.code, 'bad_end_time', String(bad));
   }
   assert.equal(e.snapshot().privilege.policies.length, 0); assert.equal(sup(e).canSeeCases, false);
-  assert.equal(request(e, { endAt: '2026-11-02T09:12:30Z' }).ok, true, 'one minute after the clock is the least');
+  assert.equal(request(e, { endAt: '2026-11-02T09:11:00Z' }).ok, true, 'one minute after the clock is the least');
+  const f = ready();
+  assert.equal(request(f, { endAt: '2026-11-02T12:00:00+01:00' }).ok, true, 'an offset is understood: 11:00 UTC');
+  assert.equal(sup(f).requests[0].endAt, '2026-11-02T11:00:00.000Z');
+  const g = ready();
+  assert.equal(request(g, { endAt: '2026-11-02T11:00:00.000Z' }).ok, true);
+});
+
+test('a row that looks linked but is still waiting is not the engineer linked: user_not_linked, nothing granted (mutant M20)', () => {
+  const e = presetEngine('connected-app');
+  run(e, 'users.add', { privilegeUserId: 'pu-a' });
+  assert.equal(e.snapshot().privilege.users[0].status, 'waiting');
+  assert.equal(sup(e).ready, false);
+  const r = request(e);
+  assert.equal(r.code, 'user_not_linked'); assert.equal(r.status, 409);
+  assert.equal(e.snapshot().privilege.policies.length, 0); assert.equal(sup(e).requests.length, 0);
+  assert.equal(attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }).code, 'user_not_linked');
+});
+
+test('Reset clears the story\'s requests as well as the world (mutant M16)', () => {
+  const e = ready();
+  request(e);
+  assert.equal(sup(e).requests.length, 1);
+  e.reset();
+  assert.equal(sup(e).requests.length, 0); assert.equal(sup(e).canSeeCases, false); assert.equal(sup(e).ready, false); assert.equal(e.snapshot().privilege.receipts.length, 0);
+  assert.equal(e.support.requests.length, 0);
+});
+
+test('the licence refusal reads "License Salesforce ≠ Cloud Integration User" in every vertical', () => {
+  for (const [v, cast] of Object.entries(VERTICALS)) {
+    const e = presetEngine('connected', cast);
+    const r = attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-3', durationMin: 60 });
+    assert.equal(r.message, 'License Salesforce ≠ Cloud Integration User', v);
+  }
 });
 
 test('requesting again while the access is live gives the guide\'s "Already has this permission set" and changes nothing', () => {
@@ -158,12 +193,12 @@ test('the vertical changes the case titles and names, not the mechanics', () => 
   assert.equal(titles.size, 3);
 });
 
-test('the scripted scenario ends where it began: Cases denied, receipt Revoked, in every vertical', () => {
+test('the scripted scenario ends where it began: Cases denied, receipt Expired / Revoked, in every vertical', () => {
   for (const [v, cast] of Object.entries(VERTICALS)) {
     const r = runScenario(cast, scenarioById('support-p1'));
     assert.ok(r.ok, v);
     assert.equal(r.engine.snapshot().support.canSeeCases, false, v);
-    assert.deepEqual(r.engine.snapshot().privilege.receipts.map((x) => x.status), ['Revoked'], v);
+    assert.deepEqual(r.engine.snapshot().privilege.receipts.map((x) => x.status), ['Expired / Revoked'], v);
     const mid = runScenario(cast, scenarioById('support-p1'), { upTo: 2 });
     assert.equal(mid.engine.snapshot().support.canSeeCases, true, v);
   }

@@ -10,7 +10,7 @@ import { fillDeep } from './cast.js';
 export const LAB_START = Date.UTC(2026, 10, 2, 9, 0, 0); // the lab clock starts here
 // activateMin: the guide says a new app can take up to 10 minutes to activate and that waiting 2 to 10 minutes is the fix; the mock is active after 2.
 export const LIMITS = Object.freeze({ advanceMaxMin: 800 * 1440, clockMaxMin: 3650 * 1440, mailbox: 20, keys: 20, grantMaxMin: 366 * 1440, policies: 200, receipts: 400, audit: 500, calls: 40, name: 80, email: 120, note: 200, requests: 100, seats: 4, activateMin: 2, certDays: 730 });
-export const SCOPES = ['api', 'refresh_token', 'web', 'full', 'id'];
+export const SCOPES = ['api', 'refresh_token']; // the two scopes the guide names (refresh_token is offline access too)
 export const SF_API = 'v62.0'; // illustrative path version on a .example host; not a claim about any real release
 const iso = (min) => new Date(LAB_START + min * 60000).toISOString();
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -45,6 +45,9 @@ const idOf = (v, field) => {
 };
 const detail = (id) => ({ id, ...OUTCOMES[id] });
 // The support engineer of the Support P1 story: the demo user A (Salesforce user sfu-2, Privilege user pu-a), on the Minimum Access profile.
+// The receipt status the guide records once the policy count has dropped to 0 (its "Expired / Revoked" counter).
+export const RECEIPT_ENDED = 'Expired / Revoked';
+const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
 const ENGINEER = Object.freeze({ privilegeUserId: 'pu-a', requestMax: LIMITS.requests });
 
 export class Engine {
@@ -215,8 +218,8 @@ export class Engine {
     const e = this._eca();
     e.codeSent = this.cast.castKeyCode;
     if (this.sf.mailbox.length >= LIMITS.mailbox) throw refuse('workspace_full', 'The mock mailbox holds at most 20 messages (Reset)', 409);
-    this.sf.mailbox.push({ n: ++this.n.mail, at: iso(this.nowMin), to: this.cast.castAdminEmail, subject: 'Verification code (MOCK email, never sent)', code: e.codeSent });
-    this._log('visitor', 'sf.requestKeyCode', 'Salesforce emailed a verification code (a mock mailbox entry)');
+    this.sf.mailbox.push({ n: ++this.n.mail, at: iso(this.nowMin), to: this.cast.castAdminEmail, subject: 'Verification code for the Consumer Key (MOCK email, never sent)', code: e.codeSent });
+    this._log('visitor', 'sf.requestKeyCode', 'Salesforce emailed a verification code to the app\'s contact email (a mock mailbox entry)');
     return { sentTo: this.cast.castAdminEmail, mock: true, note: 'MOCK mailbox: no email was sent' };
   }
   sfRevealConsumerKey({ code }) {
@@ -262,7 +265,7 @@ export class Engine {
     let u; try { u = new URL(raw); } catch { throw refuse('not_an_org_url', 'That is not a web address'); }
     const host = u.hostname.toLowerCase();
     if (u.protocol !== 'https:' || !/\.(salesforce|force|salesforce-setup)\.example$/.test(host)) throw refuse('not_an_org_url', 'Paste any address from the signed-in org (Lightning or Setup); the lab accepts only the mock org\'s .example hosts');
-    if (host.split('.')[0] !== `${this.cast.castOrg}-dev-ed`) throw refuse('org_unreachable', 'No Salesforce org answers at that address from here (the machine running Privilege must reach the org\'s My Domain host outbound)', 502);
+    if (host.split('.')[0] !== `${this.cast.castOrg}-dev-ed`) throw refuse('not_an_org_url', 'The lab has one mock org: paste an address from it');
     this.pv.wizard.orgUrl = this.sf.host; this.pv.wizard.instanceUrl = this.sf.loginUrl;
     this._log('visitor', 'wizard.orgUrl', `Org URL converted to the My Domain URL ${this.sf.loginUrl}`);
     return { instanceUrl: this.sf.loginUrl };
@@ -374,15 +377,14 @@ export class Engine {
   }
   appSync() {
     const s = this._sync();
-    const done = this._processRevocations(() => true);
     this._reconcile();
-    this._log('visitor', 'app.sync', `Sync: ${s.linked.length} linked, ${s.refused.length} refused, ${s.waiting.length} waiting, ${done.length} removal(s) done`);
-    return { ...s, removed: done, reconcile: this._reconcileView() };
+    this._log('visitor', 'app.sync', `Sync: ${s.linked.length} linked, ${s.refused.length} refused, ${s.waiting.length} waiting`);
+    return { ...s, reconcile: this._reconcileView() };
   }
   appReconcile() {
     this._connect();
     this._call('GET', `/services/data/${SF_API}/query?q=SELECT Id, AssigneeId, PermissionSetId FROM PermissionSetAssignment`, null, 200, { totalSize: this.sf.assignments.length, records: this.sf.assignments.map((x) => ({ Id: x.id, AssigneeId: x.userId, PermissionSetId: x.setId })) });
-    const done = this._processRevocations(() => true);
+    const done = this._processRevocations();
     this._reconcile();
     this._log('visitor', 'app.reconcile', `Receipts refreshed: ${done.length} removal(s) done`);
     return { removed: done, reconcile: this._reconcileView() };
@@ -403,7 +405,7 @@ export class Engine {
     this._connect();
     const asg = this._assign(user, set, 'privilege', null);
     this._call('POST', `/services/data/${SF_API}/sobjects/PermissionSetAssignment`, { AssigneeId: user.id, PermissionSetId: set.id }, 201, { id: asg.id, success: true });
-    const pol = { id: `pol-${String(++this.n.pol).padStart(4, '0')}`, privilegeUserId: row.privilegeUserId, sfUserId: user.id, setId: set.id, setLabel: set.label, startAt: this.nowMin, endAt: this.nowMin + mins, status: 'active', assignmentId: asg.id, lastError: null };
+    const pol = { id: `pol-${String(++this.n.pol).padStart(4, '0')}`, privilegeUserId: row.privilegeUserId, sfUserId: user.id, setId: set.id, setLabel: set.label, startAt: this.nowMin, endAt: this.nowMin + mins, status: 'active', assignmentId: asg.id };
     asg.policyId = pol.id;
     this.pv.policies.push(pol);
     this.pv.receipts.push({ id: `rcpt-${String(++this.n.rcpt).padStart(4, '0')}`, policyId: pol.id, privilegeUserId: pol.privilegeUserId, sfUserId: user.id, setId: set.id, setLabel: set.label, startAt: pol.startAt, endAt: pol.endAt, status: 'Granted', history: [{ at: this.nowMin, status: 'Granted' }] });
@@ -413,32 +415,27 @@ export class Engine {
   }
   _receipt(policyId) { return this.pv.receipts.find((r) => r.policyId === policyId); }
   _setReceipt(r, status) { r.status = status; r.history.push({ at: this.nowMin, status }); }
-  // Deleting the policy queues the removal: the receipt reads "Revoke pending, access still live" until the removal has been done (see _processRevocations).
+  // Deleting the policy queues the removal: the POLICY reads "Revoke pending, access still live" and the assignment is still in Salesforce until the visitor
+  // refreshes the receipts (app.reconcile, the only thing that completes it). The receipt keeps reading Granted until then.
   policyDelete({ policyId }) {
     this._app();
     const p = this.pv.policies.find((x) => x.id === idOf(policyId, 'policyId'));
     if (!p) throw refuse('unknown_policy', 'No such policy', 404);
     if (p.status !== 'active') throw refuse('policy_not_active', 'That policy is already ended or being revoked', 409);
     p.status = 'revoke_pending';
-    this._setReceipt(this._receipt(p.id), 'Revoke pending, access still live');
     this._reconcile();
     this._log('visitor', 'policy.delete', `Policy ${p.id} deleted: revoke pending, access still live`);
     return { status: 'Revoke pending, access still live' };
   }
-  // Removes the Salesforce assignment of every queued policy the filter accepts. One sign-in for the batch; if it fails the policies stay queued.
-  _processRevocations(accept) {
-    const queue = this.pv.policies.filter((p) => p.status === 'revoke_pending' && accept(p));
-    if (!queue.length) return [];
-    let connected = true;
-    try { this._connect(); } catch (e) { connected = false; for (const p of queue) p.lastError = e.message; }
-    if (!connected) return [];
+  // Removes the Salesforce assignment of every queued policy (the caller has already signed in). The receipt then reads the guide's "Expired / Revoked".
+  _processRevocations() {
     const done = [];
-    for (const p of queue) {
+    for (const p of this.pv.policies.filter((x) => x.status === 'revoke_pending')) {
       const i = this.sf.assignments.findIndex((x) => x.id === p.assignmentId);
       if (i >= 0) this.sf.assignments.splice(i, 1);
       this._call('DELETE', `/services/data/${SF_API}/sobjects/PermissionSetAssignment/${p.assignmentId}`, null, 204, null);
-      p.status = 'ended'; p.lastError = null;
-      this._setReceipt(this._receipt(p.id), 'Revoked');
+      p.status = 'ended';
+      this._setReceipt(this._receipt(p.id), RECEIPT_ENDED);
       done.push(p.id);
     }
     return done;
@@ -453,22 +450,21 @@ export class Engine {
   }
 
   // What Privilege believes after a reconcile: of the assignments Salesforce reports for the app's linked users (apart from the permission set linked to the
-  // app itself), `confirmed` are the ones an active policy accounts for, and `revokePending` those whose policy was deleted and whose removal is not done yet.
+  // app itself), `confirmed` are the ones an active policy accounts for.
   // "1 confirmed" therefore holds only while the Salesforce assignment really exists.
   _reconcile() {
     const a = this.pv.app; if (!a) return;
     const eca = this.sf.eca;
     const linked = new Set(this.pv.rows.filter((r) => r.status === 'linked').map((r) => r.sfUserId));
-    const counts = { confirmed: 0, revokePending: 0 };
+    const counts = { confirmed: 0 };
     for (const asg of this.sf.assignments) {
       if (!linked.has(asg.userId) || (eca && eca.linkedSets.includes(asg.setId))) continue;
       const pol = asg.policyId ? this.pv.policies.find((p) => p.id === asg.policyId) : null;
       if (pol && pol.status === 'active') counts.confirmed++;
-      else if (pol && pol.status === 'revoke_pending') counts.revokePending++;
     }
     const pols = this.pv.policies;
     a.reconcileAt = this.nowMin;
-    this.pv.reconcile = { at: this.nowMin, atIso: iso(this.nowMin), counts, policies: { active: pols.filter((p) => p.status === 'active').length, revokePending: pols.filter((p) => p.status === 'revoke_pending').length, expiredRevoked: pols.filter((p) => p.status === 'ended').length } };
+    this.pv.reconcile = { at: this.nowMin, atIso: iso(this.nowMin), counts, policies: { active: pols.filter((p) => p.status === 'active').length, expiredRevoked: pols.filter((p) => p.status === 'ended').length } };
   }
   _reconcileView() { return this.pv.reconcile; }
 
@@ -479,10 +475,10 @@ export class Engine {
   supportRequestAccess({ note, endAt }) {
     this._app();
     const n = typed(note, 'note', LIMITS.note);
-    if (typeof endAt !== 'string' || endAt.length > 40) throw refuse('bad_end_time', 'The end time must be a date and time');
+    if (typeof endAt !== 'string' || endAt.length > 40 || !ISO_8601.test(endAt)) throw refuse('bad_end_time', 'The end time must be an ISO 8601 date and time with Z or an offset, for example 2026-11-02T11:00:00Z');
     const t = Date.parse(endAt);
-    if (!Number.isFinite(t)) throw refuse('bad_end_time', 'The end time must be a date and time');
-    const mins = Math.round((t - LAB_START) / 60000) - this.nowMin;
+    if (!Number.isFinite(t) || (t - LAB_START) % 60000 !== 0) throw refuse('bad_end_time', 'The end time must be a real date and time on a whole minute');
+    const mins = (t - LAB_START) / 60000 - this.nowMin;
     if (mins < 1 || mins > LIMITS.grantMaxMin) throw refuse('bad_end_time', 'The end time must be after the lab clock now and within 366 days');
     if (this.support.requests.length >= ENGINEER.requestMax) throw refuse('workspace_full', 'This workspace is full (Reset)', 409);
     const set = this.sf.sets.find((x) => x.label === this.cast.castPermSet);

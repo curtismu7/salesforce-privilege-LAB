@@ -84,7 +84,7 @@ export function LabClock({ clock, act, busy, disabled }) {
     <section className="card" data-testid="lab-clock" aria-label="Lab clock">
       <p className="kicker">Lab clock</p>
       <h2 className="card__title"><span data-testid="clock-now">{t(clock?.now)} UTC</span> <span className="muted">(minute {clock?.nowMin ?? 0})</span></h2>
-      <p className="muted">The clock only moves forward: there is no rewind, Reset starts over. A new Salesforce app can take up to 10 minutes to activate; moving the clock does not end a grant, deleting the policy does.</p>
+      <p className="muted">The clock only moves forward: there is no rewind, Reset starts over. A new Salesforce app can take up to 10 minutes to activate. In this lab nothing ends a grant by itself; the end time is the "until" date on the receipt.</p>
       <div className="seg" role="group" aria-label="Advance the lab clock">
         {CLOCK_STEPS.map(([label, m]) => <button key={label} type="button" disabled={disabled || busy} onClick={() => act("clock.advance", { minutes: m })} data-testid={`advance-${m}`}>{label}</button>)}
       </div>

@@ -15,7 +15,7 @@ test('grant: a plain permission set is assigned for real in the mock org, the re
   assert.deepEqual(assignedTo(e, 'sfu-2'), ['ps-1']);
   assert.deepEqual(status(e), ['Granted']);
   const r = e.snapshot().privilege.reconcile;
-  assert.deepEqual(r.counts, { confirmed: 1, revokePending: 0 });
+  assert.deepEqual(r.counts, { confirmed: 1 });
   assert.equal(r.policies.active, 1);
   const p = e.snapshot().privilege.policies[0];
   assert.equal(p.endAt - p.startAt, HOUR);
@@ -52,28 +52,33 @@ test('who and what can be granted: a linked user, a set that is in the synced Pe
   assert.equal(grant(f, { permSetId: 'ps-1', durationMin: 366 * DAY }).ok, true, 'a year is the longest offered window');
 });
 
-test('delete the policy: "Revoke pending, access still live", the assignment is still in Salesforce until the next reconcile, then it is gone and the receipt is Revoked', () => {
+test('delete the policy: the POLICY reads "Revoke pending, access still live" and the receipt still reads Granted; the assignment stays until Refresh receipts, then it is gone and the receipt reads Expired / Revoked', () => {
   const e = presetEngine('connected');
   grant(e);
   const d = run(e, 'policy.delete', { policyId: 'pol-0001' });
   assert.equal(d.status, 'Revoke pending, access still live');
-  assert.deepEqual(status(e), ['Revoke pending, access still live']);
+  assert.equal(e.snapshot().privilege.policies[0].status, 'revoke_pending');
+  assert.deepEqual(status(e), ['Granted'], 'the guide records no pending status on a receipt');
   assert.deepEqual(assignedTo(e, 'sfu-2'), ['ps-1'], 'access is still live');
-  assert.equal(e.snapshot().privilege.reconcile.counts.revokePending, 1);
   const r = run(e, 'app.reconcile');
   assert.deepEqual(r.removed, ['pol-0001']);
   assert.deepEqual(assignedTo(e, 'sfu-2'), []);
-  assert.deepEqual(status(e), ['Revoked']);
+  assert.deepEqual(status(e), ['Expired / Revoked']);
+  assert.deepEqual(e.snapshot().privilege.receipts[0].history.map((h) => h.status), ['Granted', 'Expired / Revoked']);
   const rc = e.snapshot().privilege.reconcile;
-  assert.deepEqual(rc.policies, { active: 0, revokePending: 0, expiredRevoked: 1 });
-  assert.deepEqual(rc.counts, { confirmed: 0, revokePending: 0 });
+  assert.deepEqual(rc.policies, { active: 0, expiredRevoked: 1 });
+  assert.deepEqual(rc.counts, { confirmed: 0 });
 });
 
-test('Sync clears a pending revoke too', () => {
+test('Sync does NOT complete a pending removal: only Refresh receipts (app.reconcile) does, and no clock move or other op does either', () => {
   const e = presetEngine('connected');
   grant(e); run(e, 'policy.delete', { policyId: 'pol-0001' });
   const s = run(e, 'app.sync');
-  assert.deepEqual(s.removed, ['pol-0001']);
+  assert.ok(!('removed' in s));
+  run(e, 'clock.advance', { minutes: 30 }); run(e, 'app.sync');
+  assert.deepEqual(assignedTo(e, 'sfu-2'), ['ps-1']);
+  assert.equal(e.snapshot().privilege.policies[0].status, 'revoke_pending');
+  assert.deepEqual(run(e, 'app.reconcile').removed, ['pol-0001']);
   assert.deepEqual(assignedTo(e, 'sfu-2'), []);
 });
 
@@ -102,9 +107,9 @@ test('the reaper and the drift operations are gone: they are unknown ops, and th
   for (const op of ['reaper.run', 'drift.revoke']) { const r = attempt(e, op, {}); assert.equal(r.ok, false, op); assert.equal(r.code, 'unknown_op', op); }
   run(e, 'sf.assignPermissionSet', { userId: 'sfu-2', permSetId: 'ps-1' });
   const rc = run(e, 'app.reconcile').reconcile;
-  assert.deepEqual(Object.keys(rc.counts).sort(), ['confirmed', 'revokePending']);
+  assert.deepEqual(Object.keys(rc.counts), ['confirmed']);
   assert.ok(!('findings' in rc));
-  assert.deepEqual(rc.counts, { confirmed: 0, revokePending: 0 }, 'access assigned by hand is not counted or classified');
+  assert.deepEqual(rc.counts, { confirmed: 0 }, 'access assigned by hand is not counted or classified');
   assert.ok(!/reaped|findings|discovered|orphaned/.test(JSON.stringify(e.snapshot())));
 });
 
@@ -130,14 +135,14 @@ test('downstream failure: when Privilege can no longer sign in, a grant is a str
   assert.equal(e.snapshot().privilege.app.syncStatus, 'Ready');
 });
 
-test('a removal that cannot sign in is a 502 and stays queued as Revoke pending, access still live, until Privilege can sign in again', () => {
+test('a removal that cannot sign in is a 502 and stays queued (the policy reads Revoke pending, access still live) until Privilege can sign in again', () => {
   const e = presetEngine('connected');
   grant(e); run(e, 'policy.delete', { policyId: 'pol-0001' });
   run(e, 'sf.setPermittedUsers', { policy: 'self_authorize' });
   const r = attempt(e, 'app.reconcile');
   assert.equal(r.ok, false); assert.equal(r.status, 502); assert.equal(r.code, 'salesforce_sign_in_failed');
   assert.equal(e.snapshot().privilege.policies[0].status, 'revoke_pending');
-  assert.deepEqual(status(e), ['Revoke pending, access still live']);
+  assert.deepEqual(status(e), ['Granted']);
   assert.deepEqual(assignedTo(e, 'sfu-2'), ['ps-1']);
   run(e, 'sf.setPermittedUsers', { policy: 'admin_preauthorized' });
   assert.deepEqual(run(e, 'app.reconcile').removed, ['pol-0001']);

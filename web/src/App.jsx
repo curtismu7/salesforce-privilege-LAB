@@ -29,6 +29,15 @@ export const PAGES = [
 export const BANNER_UNKNOWN = "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.";
 // Which talk-track items the presenter sees on each page (ids from the story's talkTrack). The Support P1 page shows the beat the world is in.
 const PRESENTER_TALK = { scenarios: ["beat-1", "beat-2", "beat-3"], connect: ["connect"], link: ["link"], grant: ["grant"], diagram: ["grant"], real: [] };
+// One line per page above the content; the Support P1 page shows the story's own intro from the server.
+const PAGE_INTRO = {
+  scenarios: "Twelve scripted runs of the lab's own engine against the mock org: every step shows what was expected and what happened, with the raw request and response.",
+  connect: "Connecting the mock org to the mock Privilege app: the sign-in check shows every failure the setup guide records, with its cause and exact fix.",
+  link: "Linking a person: Privilege matches a Salesforce user on an identical email.",
+  grant: "Granting a permission set with a duration, and removing it by deleting its policy.",
+  diagram: "Two diagrams of the mock exchanges: connect and link, and grant and revoke.",
+  real: "",
+};
 const THEME_KEY = "sfp.theme";
 const FONT_KEY = "sfp.font";
 const THEMES = ["auto", "light", "dark"];
@@ -108,7 +117,7 @@ export default function App() {
           </div>
         )}
         <p className={resetMsg ? "reset-note" : "sr-only"} role="status" aria-live="polite" data-testid="reset-note">{resetMsg}</p>
-        {!presenter && story && <div className="page-head"><p className="head__intro" data-testid="head-intro">{lab.source === "real" ? "Real mode: one read-only look at your own org's permission sets and users. Nothing is granted, changed or deleted; the Connect, Link and Grant pages are for Mock." : story.intro}</p></div>}
+        {!presenter && story && (lab.source === "real" || page === "support" || PAGE_INTRO[page]) && <div className="page-head"><p className="head__intro" data-testid="head-intro">{lab.source === "real" ? "Real mode: one read-only look at your own org's permission sets and users. Nothing is granted, changed or deleted; the Support P1, Connect, Link and Grant pages are for Mock." : page === "support" ? story.intro : PAGE_INTRO[page]}</p></div>}
         {presenter && <PresenterSay say={say} heading={page === "support" ? `Beat ${beat || 1} of 3: ${BEATS[(beat || 1) - 1]}` : null} />}
         <div id={`panel-${page}`}>
           {lab.error && !story ? null : !story || !info ? <p className="muted" role="status">Loading...</p> : <View key={`${page}-${lab.epoch}`} lab={lab} />}

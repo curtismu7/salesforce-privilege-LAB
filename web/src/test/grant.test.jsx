@@ -74,21 +74,25 @@ describe("Grant and revoke page", () => {
     expect(within(dlg).getByTestId("grant-submit")).toBeDisabled();
   });
 
-  it("revoke is a policy Delete: 'Revoke pending, access still live', then Sync removes the assignment and the receipt reads Revoked", async () => {
+  it("revoke is a policy Delete: 'Revoke pending, access still live', then Refresh receipts removes the assignment and the receipt reads Expired / Revoked (Sync does not)", async () => {
     const user = await h.mount({ seed: ["revoke-by-delete", 1], page: "grant" });
     await screen.findByTestId("policy-pol-0001");
     expect(screen.getByTestId("assignments")).toHaveTextContent("Privilege policy");
     expect(screen.queryByRole("button", { name: /^Revoke$/ })).toBeNull(); // there is no Revoke button for a policy
     await user.click(screen.getByTestId("delete-pol-0001"));
     await waitFor(() => expect(text("policy-status-pol-0001")).toBe("Revoke pending, access still live"));
-    expect(text("receipt-status-rcpt-0001")).toBe("Revoke pending, access still live");
+    expect(text("receipt-status-rcpt-0001")).toBe("Granted"); // only the policy reads pending
+    expect(screen.queryByTestId("count-revokePending")).toBeNull();
+    expect(screen.getByTestId("queued-note")).toHaveTextContent("In the guide the removal is queued and a refresh shows it");
     expect(screen.getByTestId("delete-pol-0001")).toBeDisabled();
     expect(screen.getByTestId("assignments")).toHaveTextContent("Privilege policy"); // access still live in Salesforce
-    expect(text("count-revokePending")).toMatch(/Revoke pending\s*1/);
+    await user.click(screen.getByTestId("grant-sync"));
+    await waitFor(() => expect(screen.getByTestId("last-action")).toHaveTextContent("app.sync"));
+    expect(text("policy-status-pol-0001")).toBe("Revoke pending, access still live"); // Sync does not complete it
     await user.click(screen.getByTestId("reconcile"));
     await waitFor(() => expect(screen.getByTestId("no-policies")).toBeInTheDocument());
-    expect(screen.getByTestId("ended-count")).toHaveTextContent("Expired / Revoked: 1 (pol-0001 revoked)");
-    expect(text("receipt-status-rcpt-0001")).toBe("Revoked");
+    expect(screen.getByTestId("ended-count")).toHaveTextContent("Expired / Revoked: 1 (pol-0001 removed)");
+    expect(text("receipt-status-rcpt-0001")).toBe("Expired / Revoked");
     expect(screen.getByTestId("assignments")).not.toHaveTextContent("Privilege policy"); // the integration user's own assignment stays
     expect(screen.getByTestId("assignments")).not.toHaveTextContent(C.castPermSet);
     expect(text("rec-line")).toMatch(/1 Expired \/ Revoked/);

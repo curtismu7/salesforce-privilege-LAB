@@ -50,13 +50,14 @@ test('every name x vertical: the shape the page reads, every token filled, only 
   });
 });
 
-test('diagram 2 is "Grant and revoke": no reaper, no reconcile-clears arrow and no drift step; the revoke path is delete, Revoke pending, removed, Revoked', () => {
+test('diagram 2 is "Grant and revoke": no reaper, no reconcile-clears arrow and no drift step; the revoke path is delete, Revoke pending (on the policy), removed, Expired / Revoked', () => {
   const g = buildDiagram(VERTICALS.finance, 'grant-and-revoke');
   assert.equal(g.title, 'Grant and revoke');
   const text = JSON.stringify(g);
   assert.ok(!/reaper|reconcile (clears|finds|removes)|next reconcile|hand-assigned|drift|lab-invented|LAB-INVENTED|window closes/i.test(text), 'nothing unproven is drawn');
-  assert.deepEqual(g.steps.map((s) => s.title), ['Grant with a duration', 'The assignment is made in Salesforce', 'A receipt says Granted', 'Delete the policy', 'Revoke pending, access still live', 'The assignment is removed', 'The receipt reads Revoked']);
+  assert.deepEqual(g.steps.map((s) => s.title), ['Grant with a duration', 'The assignment is made in Salesforce', 'A receipt says Granted', 'Delete the policy', 'Revoke pending, access still live', 'The assignment is removed', 'The receipt reads Expired / Revoked']);
   assert.ok(!g.nodes.some((n) => /reaper/i.test(n.label)));
+  assert.ok(!JSON.stringify(g).match(/Receipt: Revoke pending|receipt reads Revoke pending|Receipt: Revoked|receipt reads Revoked/), 'no receipt status the guide does not record');
   assert.match(g.steps.find((s) => /removed/.test(s.title)).say, /Expired \/ Revoked shows 1/);
 });
 
@@ -100,5 +101,6 @@ test('the talk track has the three Support P1 beats first and no basis or label 
   assert.equal(t.length, TALK_TRACK.length);
   assert.deepEqual(t.slice(0, 3).map((x) => x.id), ['beat-1', 'beat-2', 'beat-3']);
   for (const x of t) assert.deepEqual(Object.keys(x).sort(), ['id', 'say', 'title']);
-  assert.ok(!/reaper|expire|expiry|by itself|automatic|lab-invented|drift/i.test(JSON.stringify(t)), 'no unproven claim in the talk track');
+  assert.ok(!/reaper|expiry|expires|automatic|lab-invented|drift/i.test(JSON.stringify(t)), 'no unproven claim in the talk track');
+  assert.ok(!/receipt (now )?reads? Revoked|Granted, then Revoke pending/i.test(JSON.stringify(t)));
 });

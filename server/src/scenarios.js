@@ -56,8 +56,8 @@ export const SCENARIOS = [
     steps: [
       s('support.requestAccess', { note: 'P1: {{castCaseP1Title}} ({{castCaseP1Account}}). I need to read the case history to fix it.', endAt: '2026-11-02T11:00:00Z' }, '{{castAName}} asks for {{castPermSet}} with a note and an end time. Privilege grants it: Salesforce now holds the assignment, so Cases lists three cases with the P1 on top.'),
       s('app.reconcile', null, 'Access Receipts shows Granted with its end date; the reconciliation reads 1 confirmed, and the mock org lists the assignment.'),
-      s('policy.delete', { policyId: 'pol-0001' }, 'The P1 is fixed: delete the policy (there is no Revoke button). "Revoke pending, access still live": Cases still lists the cases for a moment.'),
-      s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked. Cases is denied again.'),
+      s('policy.delete', { policyId: 'pol-0001' }, 'The P1 is fixed: delete the policy (there is no Revoke button). "Revoke pending, access still live" on the policy: the assignment is still in Salesforce, so Cases still lists the cases.'),
+      s('app.reconcile', null, 'Refresh receipts: the assignment is gone in Salesforce and the receipt reads Expired / Revoked. Cases is denied again.'),
     ],
   },
   {
@@ -71,7 +71,7 @@ export const SCENARIOS = [
       s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}} with a duration of 60 minutes.'),
       s('app.reconcile', null, 'Access Receipts shows Granted; the reconciliation reads 1 confirmed, and the mock org lists the assignment.'),
       s('policy.delete', { policyId: 'pol-0001' }, 'Active Policies, three-dot menu, Delete (there is no Revoke button): "Revoke pending, access still live".'),
-      s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked.'),
+      s('app.reconcile', null, 'Refresh receipts: the assignment is gone in Salesforce and the receipt reads Expired / Revoked.'),
     ],
   },
   failThenFix('fail-client-id', 'Sign-in fails: invalid_client_id', 'The Consumer Key was copied wrongly. Salesforce answers invalid_client_id; copy it again.', 'fresh', [
@@ -79,7 +79,7 @@ export const SCENARIOS = [
     s('wizard.signIn', { consumerKey: '3MVG9-MOCK-typo', username: '{{castAdminUsername}}' }, 'A Consumer Key with a slip in it.', 'invalid_client_id'),
     signInOk('Copied again: signed in.'),
   ]),
-  failThenFix('fail-not-propagated', 'Sign-in fails: not propagated yet', 'Everything is right, but the app is a minute old. invalid_grant, "user hasn\'t approved this consumer", until the lab clock has moved forward a few minutes.', 'fresh', [
+  failThenFix('fail-not-propagated', 'Sign-in fails: not propagated yet', 'Everything is right, but the app was only just created. invalid_grant, "user hasn\'t approved this consumer", until the lab clock has moved forward a few minutes.', 'fresh', [
     ...keyBlock(), ...ecaBlock(), ...keyCodeBlock(),
     s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminUsername}}' }, 'Signing in straight after creating the app.', 'not_propagated'),
     ...waitBlock(),
@@ -140,7 +140,7 @@ export const SCENARIOS = [
   failThenFix('revoke-by-delete', 'Revoke by deleting the policy', 'There is no Revoke button: delete the policy. First "Revoke pending, access still live", then the assignment is gone in Salesforce.', 'connected', [
     s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 1440 }, 'Grant {{castPermSet}} with a duration of a day.'),
     s('policy.delete', { policyId: 'pol-0001' }, 'Delete the policy: Revoke pending, access still live. The assignment is still in Salesforce.'),
-    s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked.'),
+    s('app.reconcile', null, 'Refresh receipts: the assignment is gone in Salesforce and the receipt reads Expired / Revoked.'),
   ]),
 ];
 
