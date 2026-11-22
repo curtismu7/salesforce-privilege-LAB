@@ -60,6 +60,9 @@ test('the fork carries none of the source lab\'s identity', () => {
       if (fs.statSync(p).isDirectory()) { walk(p); continue; }
       // README and CLAUDE.md say honestly that this is a fork of the source; this test names the source on purpose.
       if (['repo.test.mjs', 'README.md', 'CLAUDE.md'].some((n) => p.endsWith(n)) || p.endsWith('.sha256')) continue;
+      // Binary files (the guide's PDF, images) are not text: a number like 7250 can appear inside their bytes by chance. The text of the
+      // PDF comes from docs/setup-guide.md, which this test does scan.
+      if (/\.(pdf|png|jpe?g|gif|ico|woff2?)$/i.test(p)) continue;
       const t = fs.readFileSync(p, 'utf8');
       for (const w of ['D104', '7250', 'SAL_LAB', 'SALAB_', 'saas-access', 'SaaS Access']) if (t.includes(w)) hits.push(`${path.relative(root, p)}: ${w}`);
     }
