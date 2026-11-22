@@ -1,15 +1,12 @@
 // Scripted scenarios as DATA: a start point (a preset of silent setup steps) and a list of steps { op, params, expect, say }. `expect` is "ok" or the
 // error code the step must give; the doctor and the tests run every scenario in every vertical and fail on a step that does otherwise. Strings carry
 // {{cast}} tokens, filled by cast.js; a test fails on any token a pack does not define. Ids (sfu-1, ps-4, cert-1, pu-a, pol-0001) are the engine's
-// deterministic ids for the seeded world. Everything a step shows is the lab's reading of docs/setup-guide.md: observed on one org and one
-// Privilege build, UNVERIFIED as a product claim.
+// deterministic ids for the seeded world. Every step is something docs/setup-guide.md records from the one real run; nothing here ends a grant by itself.
 import { fillDeep } from './cast.js';
 import { Engine } from './engine.js';
 import { tryOp } from './actions.js';
-import { labelFor } from './data.js';
 
 const s = (op, params, say, expect = 'ok') => ({ op, ...(params ? { params } : {}), say, expect });
-const MIN_DAY = 1440;
 
 // ---- reusable blocks -------------------------------------------------------------------------------------------------------------------------
 const keyBlock = () => [
@@ -29,7 +26,7 @@ const ecaBlock = (o = {}) => {
     ...(assign ? [s('sf.assignPermissionSet', { userId: 'sfu-1', permSetId: 'ps-4' }, 'Assign it to the user Privilege signs in as: the Salesforce-licensed admin, not the built-in Integration User.')] : []),
   ];
 };
-const waitBlock = () => [s('clock.advance', { minutes: 11 }, 'Move the lab clock past 10 minutes so the new app has activated.')];
+const waitBlock = () => [s('clock.advance', { minutes: 10 }, 'Move the lab clock forward 10 minutes so the new app has activated (waiting 2 to 10 minutes is the fix).')];
 const keyCodeBlock = () => [
   s('sf.requestKeyCode', null, 'Open the app\'s Settings, OAuth Settings, Consumer Key and Secret: Salesforce emails a verification code first.'),
   s('sf.revealConsumerKey', { code: '{{castKeyCode}}' }, 'Enter the code. Copy only the Consumer Key; the Consumer Secret is not used.'),
@@ -54,17 +51,27 @@ const failThenFix = (id, title, say, preset, steps) => ({ id, title, say, preset
 
 export const SCENARIOS = [
   {
+    id: 'support-p1', title: 'Support P1: no access, access for the job, no access again', preset: 'connected',
+    say: '{{castAName}} is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: {{castAName}} asks for {{castPermSet}} with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first "Revoke pending, access still live", then the assignment is gone and Cases is denied again. The receipt keeps the record.',
+    steps: [
+      s('support.requestAccess', { note: 'P1: {{castCaseP1Title}} ({{castCaseP1Account}}). I need to read the case history to fix it.', endAt: '2026-11-02T11:00:00Z' }, '{{castAName}} asks for {{castPermSet}} with a note and an end time. Privilege grants it: Salesforce now holds the assignment, so Cases lists three cases with the P1 on top.'),
+      s('app.reconcile', null, 'Access Receipts shows Granted with its end date; the reconciliation reads 1 confirmed, and the mock org lists the assignment.'),
+      s('policy.delete', { policyId: 'pol-0001' }, 'The P1 is fixed: delete the policy (there is no Revoke button). "Revoke pending, access still live": Cases still lists the cases for a moment.'),
+      s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked. Cases is denied again.'),
+    ],
+  },
+  {
     id: 'happy-path', title: 'Connect, link, grant, revoke', preset: 'fresh',
-    say: 'The whole cycle once, with nothing going wrong: connect the org, link {{castAName}}, grant {{castPermSet}} for a window, see it in Salesforce, delete the policy and see it gone. The guide observed the removal but not which action clears "Revoke pending": the lab\'s "the next reconcile removes it" is its own reading, so this card is lab-inferred.',
+    say: 'The whole cycle once, with nothing going wrong: connect the org, link {{castAName}}, grant {{castPermSet}} for a window, see it in Salesforce, delete the policy and see it gone.',
     steps: [
       ...keyBlock(), ...ecaBlock(), ...waitBlock(), ...keyCodeBlock(), signInOk(),
       s('app.create', { name: '{{castAppName}}' }, 'Create the application: Sync Status Ready.'),
       s('users.add', { privilegeUserId: 'pu-a' }, 'Users tab, Add Users: {{castAName}} waits for Salesforce.'),
       s('app.sync', null, 'Sync: the emails are identical, so the row links and Grant Permission becomes available.'),
-      s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}} for 60 minutes (the shortest sensible window; the observed default was about a year).'),
+      s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}} with a duration of 60 minutes.'),
       s('app.reconcile', null, 'Access Receipts shows Granted; the reconciliation reads 1 confirmed, and the mock org lists the assignment.'),
       s('policy.delete', { policyId: 'pol-0001' }, 'Active Policies, three-dot menu, Delete (there is no Revoke button): "Revoke pending, access still live".'),
-      s('app.reconcile', null, 'The next reconcile removes the assignment in Salesforce; the receipt moves to Expired / Revoked.'),
+      s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked.'),
     ],
   },
   failThenFix('fail-client-id', 'Sign-in fails: invalid_client_id', 'The Consumer Key was copied wrongly. Salesforce answers invalid_client_id; copy it again.', 'fresh', [
@@ -72,17 +79,11 @@ export const SCENARIOS = [
     s('wizard.signIn', { consumerKey: '3MVG9-MOCK-typo', username: '{{castAdminUsername}}' }, 'A Consumer Key with a slip in it.', 'invalid_client_id'),
     signInOk('Copied again: signed in.'),
   ]),
-  failThenFix('fail-not-propagated', 'Sign-in fails: not propagated yet', 'Everything is right, but the app is a minute old. invalid_grant, "user hasn\'t approved this consumer", until the lab clock passes 10 minutes.', 'fresh', [
+  failThenFix('fail-not-propagated', 'Sign-in fails: not propagated yet', 'Everything is right, but the app is a minute old. invalid_grant, "user hasn\'t approved this consumer", until the lab clock has moved forward a few minutes.', 'fresh', [
     ...keyBlock(), ...ecaBlock(), ...keyCodeBlock(),
     s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminUsername}}' }, 'Signing in straight after creating the app.', 'not_propagated'),
     ...waitBlock(),
-    signInOk('The same sign-in, ten minutes later: signed in.'),
-  ]),
-  failThenFix('fail-jwt-not-enabled', 'Sign-in fails: JWT Bearer Flow not enabled', 'The app has no JWT Bearer Flow or no certificate. Enable it and upload the .crt.', 'fresh', [
-    ...keyBlock(), ...ecaBlock({ jwt: false }), ...waitBlock(), ...keyCodeBlock(),
-    s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminUsername}}' }, 'Sign in with JWT Bearer Flow off.', 'jwt_not_enabled'),
-    s('sf.setJwtBearer', { enabled: true, certId: 'cert-1' }, 'Enable JWT Bearer Flow and upload the .crt.'),
-    signInOk(),
+    signInOk('The same sign-in after the wait: signed in.'),
   ]),
   failThenFix('fail-not-preauthorized', 'Sign-in fails: not pre-authorized', 'Permitted Users was left at "All users can self-authorize", which does not work for JWT. invalid_grant.', 'fresh', [
     ...keyBlock(), ...ecaBlock({ preauth: false }), ...waitBlock(), ...keyCodeBlock(),
@@ -101,18 +102,6 @@ export const SCENARIOS = [
     s('wizard.regenerateKey', null, 'Regenerate in the wizard (or refresh it): a new key and a new certificate.'),
     s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminUsername}}' }, 'Sign in: the app still holds the old certificate.', 'signature_mismatch'),
     s('sf.setJwtBearer', { enabled: true, certId: 'cert-2' }, 'Upload the matching .crt (cert-2).'),
-    signInOk(),
-  ]),
-  failThenFix('fail-cert-expired', 'Sign-in fails: certificate expired', 'The wizard\'s certificate is valid two years. Move the lab clock past that and the same sign-in fails; regenerate and upload a new one.', 'ready', [
-    s('clock.advance', { minutes: 731 * MIN_DAY }, 'Move the lab clock 731 days.'),
-    s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminUsername}}' }, 'Sign in with the expired certificate.', 'certificate_expired'),
-    s('wizard.regenerateKey', null, 'Regenerate the key and certificate.'),
-    s('sf.setJwtBearer', { enabled: true, certId: 'cert-2' }, 'Upload the new .crt.'),
-    signInOk(),
-  ]),
-  failThenFix('fail-wrong-username', 'Sign-in fails: the email was given, not the Username', 'The Authorized User is the exact Username from Setup, Users; the email address does not work.', 'fresh', [
-    ...keyBlock(), ...ecaBlock(), ...waitBlock(), ...keyCodeBlock(),
-    s('wizard.signIn', { consumerKey: '{{castConsumerKey}}', username: '{{castAdminEmail}}' }, 'Authorized User typed as the email address.', 'wrong_username'),
     signInOk(),
   ]),
   failThenFix('fail-permset-link', 'Sign-in fails: permission set not linked, then not assigned', 'Both look the same from outside: invalid_grant. The permission set must be linked to the app and assigned to the signing-in user.', 'fresh', [
@@ -148,49 +137,14 @@ export const SCENARIOS = [
     s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}}, a plain permission set: granted.'),
     s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant it again: Already has this permission set.', 'already_has_permission_set'),
   ]),
-  failThenFix('grant-expires', 'Grant, then expire by itself', 'Nobody deletes the policy: the window closes and the reaper removes the assignment.', 'connected', [
-    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}} for 60 minutes.'),
-    s('clock.advance', { minutes: 59 }, 'Move the lab clock 59 minutes: still live.'),
-    s('clock.advance', { minutes: 2 }, 'Move it 2 more: the window has closed and the reaper removes the assignment; the receipt reads Expired.'),
-    s('app.reconcile', null, 'Reconcile: 0 confirmed, the policy shows under Expired / Revoked.'),
-  ]),
-  failThenFix('revoke-by-delete', 'Revoke by deleting the policy', 'There is no Revoke button: delete the policy. First "Revoke pending, access still live", then the next reconcile removes it (the lab\'s reading, so this card is lab-inferred).', 'connected', [
-    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 1440 }, 'Grant {{castPermSet}} for a day.'),
+  failThenFix('revoke-by-delete', 'Revoke by deleting the policy', 'There is no Revoke button: delete the policy. First "Revoke pending, access still live", then the assignment is gone in Salesforce.', 'connected', [
+    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 1440 }, 'Grant {{castPermSet}} with a duration of a day.'),
     s('policy.delete', { policyId: 'pol-0001' }, 'Delete the policy: Revoke pending, access still live. The assignment is still in Salesforce.'),
-    s('app.reconcile', null, 'Reconcile (or Sync): the assignment is really removed and the receipt moves to Revoked.'),
-  ]),
-  failThenFix('hand-assigned-drift', 'Drift: a permission set assigned by hand', 'An admin assigns a permission set in Salesforce without a Privilege policy. Reconcile finds it; it can be revoked. Discovered and orphaned are the lab\'s names for it.', 'connected', [
-    s('sf.assignPermissionSet', { userId: 'sfu-2', permSetId: 'ps-1' }, 'An admin assigns {{castPermSet}} to {{castAName}} by hand in Salesforce.'),
-    s('app.reconcile', null, 'Reconcile: discovered 1 (no Privilege receipt for it).'),
-    s('drift.revoke', { privilegeUserId: 'pu-a', permSetId: 'ps-1' }, 'Revoke it from Privilege: the assignment is removed.'),
-    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Now grant it properly.'),
-    s('policy.delete', { policyId: 'pol-0001' }, 'Delete the policy.'),
-    s('app.reconcile', null, 'Reconcile: removed.'),
-    s('sf.assignPermissionSet', { userId: 'sfu-2', permSetId: 'ps-1' }, 'An admin assigns it by hand again after Privilege ended it.'),
-    s('app.reconcile', null, 'Reconcile: orphaned 1 (Privilege once granted and ended it).'),
-    s('drift.revoke', { privilegeUserId: 'pu-a', permSetId: 'ps-1' }, 'Revoke it.'),
-  ]),
-  failThenFix('sign-in-breaks-later', 'Downstream failure: Privilege can no longer sign in', 'Two years on the certificate expires. A new grant fails with a structured 502, a grant whose window closed cannot be removed, and both are fixed by replacing the certificate.', 'connected', [
-    s('sf.createPermissionSet', { label: '{{castPermSet2}}' }, 'Create a second plain permission set in Salesforce.'),
-    s('app.sync', null, 'Sync so Privilege lists it.'),
-    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 }, 'Grant {{castPermSet}} for 60 minutes.'),
-    s('clock.advance', { minutes: 731 * MIN_DAY }, 'Move the lab clock 731 days: the window closed long ago and the certificate has expired, so the reaper cannot sign in to remove the assignment.'),
-    s('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-5', durationMin: 60 }, 'Grant {{castPermSet2}}: Privilege cannot sign in to Salesforce (a structured 502, salesforce_sign_in_failed).', 'salesforce_sign_in_failed'),
-    s('wizard.regenerateKey', null, 'Regenerate the key and certificate in the wizard.'),
-    s('sf.setJwtBearer', { enabled: true, certId: 'cert-2' }, 'Upload the new .crt to the app.'),
-    s('app.reconcile', null, 'Reconcile: signed in again, and the expired grant is removed.'),
+    s('app.reconcile', null, 'Refresh: the assignment is gone in Salesforce and the receipt reads Revoked.'),
   ]),
 ];
 
-// What each scenario rests on: observed (the guide records it), lab-inferred (the guide gives the advice or the symptom, not this failure) or lab-invented
-// (the reaper, or hand-assigned drift). A test pins this table and that it covers every scenario.
-export const SCENARIO_BASIS = Object.freeze({
-  'happy-path': 'lab-inferred', 'fail-client-id': 'observed', 'fail-not-propagated': 'observed', 'fail-jwt-not-enabled': 'lab-inferred', 'fail-not-preauthorized': 'observed',
-  'fail-refresh-scope': 'observed', 'fail-cert-mismatch': 'observed', 'fail-cert-expired': 'lab-inferred', 'fail-wrong-username': 'lab-inferred', 'fail-permset-link': 'observed',
-  'duplicate-email': 'observed', 'link-pitfalls': 'observed', 'grant-rules': 'observed', 'grant-expires': 'lab-invented', 'revoke-by-delete': 'lab-inferred',
-  'hand-assigned-drift': 'lab-invented', 'sign-in-breaks-later': 'lab-invented',
-});
-export const scenarioList = (cast) => fillDeep(SCENARIOS.map((sc) => ({ id: sc.id, title: sc.title, say: sc.say, preset: sc.preset, presetText: PRESET_TEXT[sc.preset], steps: sc.steps.length, basis: SCENARIO_BASIS[sc.id], label: labelFor(SCENARIO_BASIS[sc.id]) })), cast);
+export const scenarioList = (cast) => fillDeep(SCENARIOS.map((sc) => ({ id: sc.id, title: sc.title, say: sc.say, preset: sc.preset, presetText: PRESET_TEXT[sc.preset], steps: sc.steps.length })), cast);
 export const scenarioById = (id) => SCENARIOS.find((sc) => sc.id === id) || null;
 
 // Run a scenario on a fresh engine: the preset silently (every step must be ok), then the scenario's steps (the first `upTo`, default all).

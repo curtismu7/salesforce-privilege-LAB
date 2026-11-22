@@ -26,8 +26,7 @@ export const OPS = Object.freeze({
   'users.add': ['usersAdd', ['privilegeUserId']],
   'policy.grant': ['policyGrant', ['privilegeUserId', 'permSetId', 'durationMin']],
   'policy.delete': ['policyDelete', ['policyId']],
-  'drift.revoke': ['driftRevoke', ['privilegeUserId', 'permSetId']],
-  'reaper.run': ['reaperRun', []],
+  'support.requestAccess': ['supportRequestAccess', ['note', 'endAt']],
   'clock.advance': ['clockAdvance', ['minutes']],
 });
 

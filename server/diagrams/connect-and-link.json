@@ -2,7 +2,7 @@
   "schema": "diagram-studio/1",
   "id": "connect-and-link",
   "title": "Connect an org and link a user",
-  "lede": "{{castAdminName}} connects a Salesforce Developer org to PingOne Privilege, then links {{castAName}}. Every step is observed on one org and one Privilege build, UNVERIFIED as a product claim. Simulated; hosts are examples.",
+  "lede": "{{castAdminName}} connects a Salesforce Developer org to PingOne Privilege, then links {{castAName}}. Simulated; hosts are examples.",
   "groups": {
     "you": {
       "label": "The admin",
@@ -101,56 +101,49 @@
       "what": "The admin pastes any address from the org; Privilege converts it to the My Domain URL and generates a key and a certificate valid two years. The private key exists only in the wizard form: a refresh means a new key and a new certificate to upload.",
       "edges": [
         0
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "Create the External Client App",
       "what": "In Salesforce the admin creates the app with JWT Bearer Flow and the certificate, the scopes api and refresh_token, Permitted Users set to pre-authorized, and a permission set linked to the app and assigned to the user Privilege signs in as. A new app can take up to 10 minutes to activate.",
       "edges": [
         1
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "Privilege signs in with a signed JWT",
       "what": "Privilege signs in as one integration user with a signed JWT: no password, no consent screen. Miss any one of the three settings and Salesforce refuses with invalid_grant; each way it fails has a cause and a fix.",
       "edges": [
         2
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "The wizard shows Signed in",
       "what": "The green line \"Signed in to the org as the user\" means the key, the certificate, the pre-authorization and the permission set link are all correct. Name the application and create it: Sync Status Ready.",
       "edges": [
         3
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "Sync reads users and permission sets",
       "what": "Sync reads the org's users, profiles and permission sets. Privilege never creates a Salesforce user: someone without one waits until an admin creates it.",
       "edges": [
         4
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "The lists come back",
       "what": "The Permissions list and the Salesforce users arrive; a permission set created in Salesforce shows up only after the next Sync.",
       "edges": [
         5
-      ],
-      "basis": "observed"
+      ]
     },
     {
       "title": "Link only on an identical email",
       "what": "Privilege links a person only when the email is identical. {{castDupName1}} and {{castDupName2}} share one email, so neither links (its email matches 2 Privilege users); {{castAName}} has a unique email and links on the first Sync. A Federation ID did not override this in the one test run.",
       "edges": [
         6
-      ],
-      "basis": "observed"
+      ]
     }
   ]
 }

@@ -43,14 +43,14 @@ test('not configured: the reason names the missing settings only, never a value,
   assert.equal(noKey.configured, false); assert.ok(!noKey.reason.includes('/nonexistent'));
 });
 
-test('the sign-in is an RS256 JWT bearer the stub verifies; the read returns permission sets and users, labelled, with a trace on every hop', async () => {
+test('the sign-in is an RS256 JWT bearer the stub verifies; the read returns permission sets and users, labelled, with a trace on every hop and no label field', async () => {
   const s = await setup();
   try {
     const real = createRealOrg(s.env);
     assert.equal(real.configured, true); assert.equal(real.host, '127.0.0.1');
     const tp = `00-${'c'.repeat(32)}-${'d'.repeat(16)}-01`;
     const r = await real.read({ traceparent: tp });
-    assert.equal(r.readOnly, true); assert.equal(r.label, 'read from your org, read-only'); assert.equal(r.basis, 'live'); assert.ok(!/observed|UNVERIFIED/.test(r.label), 'live data is not labelled as an observed product claim');
+    assert.equal(r.readOnly, true); assert.ok(!('label' in r) && !('basis' in r), 'no label state on live data');
     assert.deepEqual(r.permissionSets.map((x) => x.label), ['Account Read Access', 'Integration Access']);
     assert.equal(r.users[0].email, 'someone@stub-org.example'); assert.equal(r.users[0].active, true);
     assert.equal(r.traceId, 'c'.repeat(32));
@@ -94,7 +94,7 @@ test('Salesforce refuses the sign-in: a structured 502 with its own error and th
       assert.equal(e.extra.salesforce.error, 'invalid_grant');
       const ids = e.extra.candidates.map((c) => c.id).sort();
       assert.deepEqual(ids, ['not_preauthorized', 'not_propagated', 'permset_not_assigned', 'permset_not_linked']);
-      assert.ok(e.extra.candidates.every((c) => c.fix && c.cause && /UNVERIFIED/.test(c.label)));
+      assert.ok(e.extra.candidates.every((c) => c.fix && c.cause && !('label' in c)));
       return true;
     });
   } finally { await s.done(); }

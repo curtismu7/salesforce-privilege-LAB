@@ -1,5 +1,5 @@
 // Preflight: the same checks GET /api/health reports from, plus whether the port is free, plus one real run of the lab through the HTTP API
-// (a sign-in failure with its fix, a link, a grant, the lab clock, the reaper) on a throwaway port. Prints only pass/fail lines, never a setting's
+// (a sign-in failure with its fix, a link, a grant, a revoke, the Support P1 story) on a throwaway port. Prints only pass/fail lines, never a setting's
 // value. Exit 1 on failure.
 import net from 'node:net';
 import path from 'node:path';
@@ -30,12 +30,12 @@ try {
     const run = async (id) => (await fetch(`${base}/api/scenarios/${id}/run`, { method: 'POST', headers: h, body: '{}' })).json();
     const happy = await run('happy-path');
     const fail = await run('fail-not-propagated');
-    const expire = await run('grant-expires');
+    const p1 = await run('support-p1');
     const dup = await run('duplicate-email');
     const final = await act('clock.advance', { minutes: 1 });
-    const ok = happy.ok && fail.ok && expire.ok && dup.ok && final.ok === true && happy.state.privilege.policies[0].status === 'ended' && expire.state.privilege.receipts[0].status === 'Expired'
+    const ok = happy.ok && fail.ok && p1.ok && dup.ok && final.ok === true && happy.state.privilege.policies[0].status === 'ended' && p1.state.privilege.receipts[0].status === 'Revoked' && p1.state.support.canSeeCases === false && p1.state.support.cases === null
       && fail.steps.find((x) => x.expect === 'not_propagated').result.outcome.id === 'not_propagated' && /matches 2 Privilege users/.test(JSON.stringify(dup.steps[2].result));
-    report(ok ? 'pass' : 'fail', 'lab-cycle', ok ? 'connect, link, grant, revoke; a sign-in failure with its fix; a grant that expires by itself; the duplicate-email refusal: all ran through the HTTP API' : 'the scripted cycle through the HTTP API did not complete');
+    report(ok ? 'pass' : 'fail', 'lab-cycle', ok ? 'connect, link, grant, revoke; a sign-in failure with its fix; the Support P1 story ends with Cases denied again; the duplicate-email refusal: all ran through the HTTP API' : 'the scripted cycle through the HTTP API did not complete');
   } finally { health.stop(); await new Promise((res) => server.close(res)); }
 } catch { report('fail', 'lab-cycle', 'the HTTP cycle could not run'); }
 

@@ -67,11 +67,11 @@ test('a refusal keeps its status, or comes back as data when the page asks; a do
     const d = await act(url, 'wizard.generateKey', undefined, { refusalsAs200: true });
     assert.equal(d.status, 200); assert.equal((await json(d)).ok, false);
     // Downstream failure: no application's sign-in works any more -> 502, even when the page asks for refusals as data.
-    for (const [op, p] of [['wizard.orgUrl', { url: C.castWizardUrl }], ['wizard.generateKey'], ['sf.createApp', { name: C.castEccName }], ['sf.setScopes', { scopes: ['api', 'refresh_token'] }], ['sf.setJwtBearer', { enabled: true, certId: 'cert-1' }], ['sf.setPermittedUsers', { policy: 'admin_preauthorized' }], ['sf.createPermissionSet', { label: 'Integration Access' }], ['sf.linkPermissionSet', { permSetId: 'ps-4' }], ['sf.assignPermissionSet', { userId: 'sfu-1', permSetId: 'ps-4' }], ['clock.advance', { minutes: 11 }], ['wizard.signIn', { consumerKey: C.castConsumerKey, username: C.castAdminUsername }], ['app.create', { name: C.castAppName }], ['clock.advance', { minutes: 800 * 1440 }]]) assert.equal((await act(url, op, p)).status, 200, op);
+    for (const [op, p] of [['wizard.orgUrl', { url: C.castWizardUrl }], ['wizard.generateKey'], ['sf.createApp', { name: C.castEccName }], ['sf.setScopes', { scopes: ['api', 'refresh_token'] }], ['sf.setJwtBearer', { enabled: true, certId: 'cert-1' }], ['sf.setPermittedUsers', { policy: 'admin_preauthorized' }], ['sf.createPermissionSet', { label: 'Integration Access' }], ['sf.linkPermissionSet', { permSetId: 'ps-4' }], ['sf.assignPermissionSet', { userId: 'sfu-1', permSetId: 'ps-4' }], ['clock.advance', { minutes: 11 }], ['wizard.signIn', { consumerKey: C.castConsumerKey, username: C.castAdminUsername }], ['app.create', { name: C.castAppName }], ['wizard.regenerateKey']]) assert.equal((await act(url, op, p)).status, 200, op);
     const down = await act(url, 'app.sync', undefined, { refusalsAs200: true });
     assert.equal(down.status, 502);
     const db = await json(down);
-    assert.equal(db.error, 'salesforce_sign_in_failed'); assert.match(db.message, /could not sign in to Salesforce/); assert.equal(db.outcome.id, 'certificate_expired');
+    assert.equal(db.error, 'salesforce_sign_in_failed'); assert.match(db.message, /could not sign in to Salesforce/); assert.equal(db.outcome.id, 'signature_mismatch');
     assert.match(down.headers.get('content-type'), /^application\/json/);
   });
 });
@@ -100,7 +100,7 @@ test('GET /api/state: a peek creates nothing; the vertical changes the cast', as
 test('scenarios: list, run (to the end or to a step), the engine stays where it ended, an unknown id is a JSON 404', async () => {
   await withServer(async (url) => {
     const list = await json(await get(url, '/api/scenarios'));
-    assert.ok(list.scenarios.length >= 12); assert.ok(list.scenarios.every((s) => s.label && s.id && s.title && s.steps > 0));
+    assert.equal(list.scenarios.length, 12); assert.ok(list.scenarios.every((s) => s.id && s.title && s.steps > 0 && !('label' in s) && !('basis' in s)));
     const r = await json(await post(url, '/api/scenarios/happy-path/run', {}));
     assert.equal(r.ok, true); assert.ok(r.steps.every((x) => x.met));
     assert.equal(r.state.privilege.policies[0].status, 'ended');
@@ -172,7 +172,7 @@ test('Mock is zero-outbound: a whole session through the API under the netguard 
   const g = installNetguard();
   try {
     await withServer(async (url) => {
-      for (const id of ['happy-path', 'fail-cert-expired', 'sign-in-breaks-later', 'hand-assigned-drift']) await post(url, `/api/scenarios/${id}/run`, {});
+      for (const id of ['support-p1', 'happy-path', 'link-pitfalls', 'revoke-by-delete']) await post(url, `/api/scenarios/${id}/run`, {});
       await act(url, 'app.sync');
       await get(url, '/api/story'); await get(url, '/api/state');
     });
@@ -180,11 +180,13 @@ test('Mock is zero-outbound: a whole session through the API under the netguard 
   } finally { g.restore(); }
 });
 
-test('the story is served with every product statement labelled', async () => {
+test('the story is served with no label state, only the simulation banner', async () => {
   await withServer(async (url) => {
     const s = await json(await get(url, '/api/story'));
-    assert.equal(s.observedLabel, 'observed on one org and one Privilege build, UNVERIFIED as a product claim');
-    assert.ok(s.claims.length >= 10 && s.troubleshooting.length >= 12 && s.outcomes.length >= 12 && s.talkTrack.length >= 6);
+    for (const k of ['labels', 'labInvented', 'signInOrder', 'observedLabel', 'claims', 'durations']) assert.ok(!(k in s), k);
+    assert.equal(s.banner.mock, 'Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.');
+    assert.ok(s.troubleshooting.length >= 12 && s.outcomes.length === 9 && s.talkTrack.length >= 6);
     assert.deepEqual(s.verticals, ['finance', 'health', 'retail']);
+    assert.ok(!('reaper.run' in Object.fromEntries(s.ops.map((o) => [o, 1]))) && !s.ops.includes('drift.revoke') && s.ops.includes('support.requestAccess'));
   });
 });

@@ -2,9 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { C, newEngine, presetEngine, run, attempt } from './helpers.js';
-import { OUTCOMES, OBSERVED, labelFor } from '../src/data.js';
+import { OUTCOMES } from '../src/data.js';
 
-const DAY = 1440;
 const signIn = (e, o = {}) => attempt(e, 'wizard.signIn', { consumerKey: C.castConsumerKey, username: C.castAdminUsername, ...o });
 
 function prepared({ scopes = ['api', 'refresh_token'], jwt = true, preauth = true, link = true, assign = true, wait = true } = {}) {
@@ -16,7 +15,7 @@ function prepared({ scopes = ['api', 'refresh_token'], jwt = true, preauth = tru
   run(e, 'sf.createPermissionSet', { label: C.castIntegrationSet });
   if (link) run(e, 'sf.linkPermissionSet', { permSetId: 'ps-4' });
   if (assign) run(e, 'sf.assignPermissionSet', { userId: 'sfu-1', permSetId: 'ps-4' });
-  if (wait) run(e, 'clock.advance', { minutes: 11 });
+  if (wait) run(e, 'clock.advance', { minutes: 10 });
   return e;
 }
 
@@ -28,26 +27,36 @@ test('a fully set up app signs in: the message names the host and the user, and 
   assert.match(r.result.token.label, /MOCK token issued by this lab, not a Salesforce token/);
 });
 
-test('each failure carries a stable code, a cause, the exact fix and the observed-on-one-org label', () => {
+test('each failure carries a stable code, a cause and the exact fix, and no label of any kind', () => {
   const cases = [
     ['invalid_client_id', () => prepared(), { consumerKey: 'not-the-key' }],
     ['not_propagated', () => prepared({ wait: false }), {}],
-    ['jwt_not_enabled', () => prepared({ jwt: false }), {}],
-    ['missing_api_scope', () => prepared({ scopes: ['refresh_token'] }), {}],
     ['missing_refresh_scope', () => prepared({ scopes: ['api'] }), {}],
     ['not_preauthorized', () => prepared({ preauth: false }), {}],
     ['permset_not_linked', () => prepared({ link: false, assign: false }), {}],
     ['permset_not_assigned', () => prepared({ assign: false }), {}],
-    ['wrong_username', () => prepared(), { username: C.castAdminEmail }],
-    ['unknown_username', () => prepared(), { username: 'nobody@nowhere.example' }],
   ];
   for (const [id, make, over] of cases) {
     const r = signIn(make(), over);
     assert.equal(r.ok, false, id); assert.equal(r.code, id, id); assert.equal(r.status, 422, id);
-    assert.equal(r.outcome.id, id); assert.equal(r.outcome.label, labelFor(OUTCOMES[id].basis)); assert.equal(r.outcome.basis, OUTCOMES[id].basis);
+    assert.equal(r.outcome.id, id); assert.deepEqual(Object.keys(r.outcome).sort(), ['cause', 'fix', 'id', 'sfDescription', 'sfError']);
     assert.equal(r.outcome.cause, OUTCOMES[id].cause); assert.equal(r.outcome.fix, OUTCOMES[id].fix);
     assert.ok(r.outcome.cause.length > 10 && r.outcome.fix.length > 10, id);
   }
+});
+
+test('the outcomes the guide did not record are gone: only the recorded causes remain, plus the lab\'s own not_modelled refusal', () => {
+  assert.deepEqual(Object.keys(OUTCOMES).sort(), ['invalid_client_id', 'missing_refresh_scope', 'not_modelled', 'not_preauthorized', 'not_propagated', 'permset_not_assigned', 'permset_not_linked', 'signature_mismatch', 'signed_in']);
+  for (const gone of ['jwt_not_enabled', 'missing_api_scope', 'certificate_expired', 'wrong_username', 'unknown_username', 'user_inactive', 'user_not_licensed']) assert.ok(!(gone in OUTCOMES), gone);
+});
+
+test('a setup the guide records no failure for (JWT off, no api scope, a username or user that is not usable) is the lab\'s not_modelled refusal, which claims nothing about Salesforce', () => {
+  for (const [make, over] of [[() => prepared({ jwt: false }), {}], [() => prepared({ scopes: ['refresh_token'] }), {}], [() => prepared(), { username: C.castAdminEmail }], [() => prepared(), { username: 'nobody@nowhere.example' }]]) {
+    const r = signIn(make(), over);
+    assert.equal(r.code, 'not_modelled'); assert.equal(r.outcome.sfError, null); assert.equal(r.outcome.sfDescription, null);
+  }
+  const e = prepared(); run(e, 'sf.deactivateUser', { userId: 'sfu-1' });
+  assert.equal(signIn(e).code, 'not_modelled');
 });
 
 test('invalid_grant is what Salesforce said for the pre-authorization, link, assignment and propagation failures; the rest were not captured and are null, not invented', () => {
@@ -56,27 +65,27 @@ test('invalid_grant is what Salesforce said for the pre-authorization, link, ass
     assert.equal(OUTCOMES[id].sfDescription, 'user hasn\'t approved this consumer', id);
   }
   assert.equal(OUTCOMES.invalid_client_id.sfError, 'invalid_client_id');
-  for (const id of ['jwt_not_enabled', 'missing_refresh_scope', 'signature_mismatch', 'certificate_expired', 'wrong_username']) { assert.equal(OUTCOMES[id].sfError, null, id); assert.equal(OUTCOMES[id].sfDescription, null, id); }
+  for (const id of ['missing_refresh_scope', 'signature_mismatch']) { assert.equal(OUTCOMES[id].sfError, null, id); assert.equal(OUTCOMES[id].sfDescription, null, id); }
 });
 
-test('"not propagated yet" lasts exactly 10 lab minutes after the app was created', () => {
+test('"not propagated yet" has no exact 10-minute boundary: the guide says up to 10 minutes and that waiting 2 to 10 is the fix', () => {
   const e = prepared({ wait: false });
-  run(e, 'clock.advance', { minutes: 9 });
   assert.equal(signIn(e).code, 'not_propagated');
   run(e, 'clock.advance', { minutes: 1 });
-  assert.equal(signIn(e).ok, true);
+  assert.equal(signIn(e).code, 'not_propagated');
+  run(e, 'clock.advance', { minutes: 1 });
+  assert.equal(signIn(e).ok, true, 'two minutes is inside the guide\'s 2 to 10 minute range');
+  assert.match(OUTCOMES.not_propagated.cause, /up to 10 minutes/); assert.match(OUTCOMES.not_propagated.fix, /2 to 10 minutes/);
 });
 
-test('the certificate: a regenerated key no longer matches the uploaded one; the matching upload fixes it; two years later it has expired', () => {
+test('the certificate: a regenerated key no longer matches the uploaded one; the matching upload fixes it; an old certificate never expires in the lab', () => {
   const e = prepared();
   run(e, 'wizard.regenerateKey');
   assert.equal(signIn(e).code, 'signature_mismatch');
   run(e, 'sf.setJwtBearer', { enabled: true, certId: 'cert-2' });
   assert.equal(signIn(e).ok, true);
-  run(e, 'clock.advance', { minutes: 729 * DAY });
-  assert.equal(signIn(e).ok, true, 'one day before the two years are up');
-  run(e, 'clock.advance', { minutes: 1 * DAY + 1 });
-  assert.equal(signIn(e).code, 'certificate_expired');
+  run(e, 'clock.advance', { minutes: 800 * 1440 });
+  assert.equal(signIn(e).ok, true, 'expiry of a certificate was not observed, so the lab does not model it');
 });
 
 test('a certificate from some other key never matches', () => {
@@ -85,24 +94,14 @@ test('a certificate from some other key never matches', () => {
   assert.equal(signIn(e).code, 'signature_mismatch');
 });
 
-test('an inactive or non-Salesforce-licensed authorized user is refused with its own outcome', () => {
-  const e = prepared();
-  run(e, 'sf.deactivateUser', { userId: 'sfu-1' });
-  assert.equal(signIn(e).code, 'user_inactive');
-});
-
-test('order of checks: the Consumer Key first, then propagation, then JWT, scopes, certificate, user, pre-authorization, link, assignment', () => {
-  const e = prepared({ wait: false, jwt: false, scopes: [], preauth: false, link: false, assign: false });
+test('order of checks does not matter to the story: each recorded cause is shown once its predecessors are fixed', () => {
+  const e = prepared({ wait: false, scopes: [], preauth: false, link: false, assign: false });
   assert.equal(signIn(e, { consumerKey: 'x' }).code, 'invalid_client_id');
   assert.equal(signIn(e).code, 'not_propagated');
-  run(e, 'clock.advance', { minutes: 11 });
-  assert.equal(signIn(e).code, 'jwt_not_enabled');
-  run(e, 'sf.setJwtBearer', { enabled: true, certId: 'cert-1' });
-  assert.equal(signIn(e).code, 'missing_api_scope');
+  run(e, 'clock.advance', { minutes: 10 });
   run(e, 'sf.setScopes', { scopes: ['api'] });
   assert.equal(signIn(e).code, 'missing_refresh_scope');
   run(e, 'sf.setScopes', { scopes: ['api', 'refresh_token'] });
-  assert.equal(signIn(e, { username: C.castAdminEmail }).code, 'wrong_username');
   assert.equal(signIn(e).code, 'not_preauthorized');
   run(e, 'sf.setPermittedUsers', { policy: 'admin_preauthorized' });
   assert.equal(signIn(e).code, 'permset_not_linked');
