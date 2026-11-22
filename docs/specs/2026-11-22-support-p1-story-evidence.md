@@ -6,16 +6,16 @@ Spec: `docs/specs/2026-11-22-support-p1-story.md`. Branch `story/support-p1`. Mo
 
 | Suite | Result |
 | --- | --- |
-| server (`node --test test/*.test.js`) | 165 tests, 165 pass, 0 fail |
-| web (vitest, real Express app in process) | 13 files, 169 tests, 169 pass |
-| scripts (`node --test scripts/*.test.mjs`, includes `setup-real.test.mjs`) | 43 tests, 43 pass |
-| `npm run build`, `node scripts/doctor.mjs` | exit 0, exit 0 (19 PASS, 0 FAIL) |
+| server (`node --test test/*.test.js`) | 168 tests, 168 pass, 0 fail |
+| web (vitest, real Express app in process) | 13 files, 171 tests, 171 pass |
+| scripts (`node --test scripts/*.test.mjs`, includes `setup-real.test.mjs`) | 48 tests, 48 pass |
+| `npm run build`, `node scripts/doctor.mjs` | exit 0, exit 0 (19 PASS, 0 FAIL); `validate-content-pack.mjs`: valid |
 
 Other gates: `conformance.mjs . --new --tier=Demo`: 0 failed, 2 advisory warnings (rule 18 k8s, deferred by the owner). `check-ui-standard.sh` (this Mac, canonical present): OK, pin OK. `check-ui-patterns.mjs --app salesforce-privilege-LAB`: 7 pages, 7 clean, 0 with drift (advisory WARNs T1 line 81 and P11 in the vendored `ReleaseNotes.jsx` pre-date this work). `check-no-ai-attribution.sh`: 0 and 0. gitleaks: clean on every commit.
 
 ## Acceptance criteria
 
-1. **Story page.** `web/src/test/support.test.jsx` (first page; three panels; denied with no title and no count; request grants and lists 3 cases with the P1; End access shows "Revoke pending, access still live" with the cases still listed, then denied again; receipt history Granted then Revoke pending then Revoked). Browser: `light-1280-1-denied.png`, `-2-granted.png`, `-3-pending.png`, `-4-denied-again.png` in the scratchpad `sfstory/` folder (also dark and 375px), log `proof-log.txt` (3 rows, "1 confirmed", pending still lists cases, receipt chain, 0 console errors, 0 px horizontal overflow).
+1. **Story page.** `web/src/test/support.test.jsx` (first page; three panels; denied with no title and no count; request grants and lists 3 cases with the P1; End access leaves the policy reading "Revoke pending, access still live" with the cases still listed until Refresh receipts is pressed, then denied again; the receipt reads Granted and then Expired / Revoked). Browser: `light-1280-1-denied.png`, `-2-granted.png`, `-3-pending.png`, `-4-denied-again.png` in the scratchpad `sfstory/` folder (also dark and 375px), log `proof-log.txt` (3 rows, "1 confirmed"). Re-run after the review fix pass: folder `sfstory2/` (light and dark at 1280 and 375): the request card holds the note and the Privilege panel does not; after End access the policy stays "Revoke pending, access still live", the cases stay listed, beat 2 stays current and no request is sent for 6 seconds; Refresh receipts sends the only `app.reconcile`, then Cases is denied and the receipt reads "Granted then Expired / Revoked"; 0 console errors, 0 px overflow.
 2. **Visibility from state.** `server/test/support.test.js`: derived from the `Case Read Access` assignment; a clock move, Sync, another set change nothing; hand assignment and hand removal follow the assignment; delete shows pending then gone.
 3. **Value points.** No standing access before and after: beat strip and the same Salesforce panel in three states (screenshots). Note and end time on every grant: request form, `support.requestAccess` (the lab does not claim Privilege stores the note: `docs/ui-notes.md`, README). Receipt plus check: `server/test/support.test.js` "reconciliation reads 1 confirmed only while the Salesforce assignment really exists". The old way: `oldway-panel` with the tag "Narrative: not a Privilege claim"; web test shows it does not change with the engine.
 4. **Nothing unproven left.** `grep -rniE "lab-invented|lab-inferred|labInvented|lab_invented|basis" server/src web/src docs README.md CLAUDE.md content-pack.json scripts` returns only the spec (and nothing in the guide); `server/test/fixpass.test.js` S6 and `server/test/api.test.js` prove `/api/story` has no `labels`, `labInvented`, `signInOrder`, `observedLabel`, `claims`, `durations`; web tests prove no chips or panel render; the banner is exactly "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run."
@@ -34,3 +34,13 @@ Empty or denied (`cases-denied`, no leak: `support.test.js` and `support.test.js
 2. A setup the guide records no failure for (JWT off, no `api` scope, a Username that is not a usable user) is refused with the lab's own `not_modelled` outcome so the engine has an answer without claiming what Salesforce says.
 3. `docs/setup-guide.md`, its PDF and `skills/` still contain the sentence "Use the shortest duration offered so access visibly expires" (a demo tip, not an observation); it conflicts with open item 2 and was left unchanged by instruction.
 4. Spec open items 1 to 4 are unchanged: the note is not claimed to be stored by Privilege, the end time is not claimed to end access, `Case Read Access` is the lab's example set, Real needs the owner's own second External Client App.
+
+## Review fix pass (B1, S1 to S8, N1 to N4, N7, N8)
+
+- B1: the engineer's note and end time live in "The engineer's request (the lab's own step; Privilege does not store it in this lab)"; the Privilege panel holds only the policy, the receipts and the reconciliation (`support.test.jsx`, browser log).
+- S1: the receipt reads Granted, then the guide's "Expired / Revoked"; "Revoke pending, access still live" is on the policy only; the reconciliation has only `confirmed`; diagram, content pack, README, talk track and tests follow.
+- S2: no auto-refresh; Sync no longer completes removals; the visible Refresh receipts button (`app.reconcile`) is the only trigger, with "In the guide the removal is queued and a refresh shows it." Web test W01 holds beat 2 while pending and counts the posted actions.
+- S3, S4: wording reworded to the guide's; Connect: no activation chip, only the two scopes the guide names, no `org_unreachable`, the verification-code wording from the guide.
+- S5, S6, S7: `setup-real.sh` checks all inputs before touching a file, builds new files under temporary names, backs up the key, certificate and `.env` under `--force` (unique names, mode 600) and restores them on failure, runs under `LC_ALL=C`, validates ASCII-only values and a host-name-only https origin, creates `secrets/` at 700, refuses symlinks, makes a relative `--dir` absolute; 12 script tests added or rewritten.
+- S8: tests for M20 (waiting row is `user_not_linked`), W01, M16 (`reset` clears the requests). N1 `endAt` ISO 8601 with Z or offset on a whole minute; N2 "License Salesforce ≠ Cloud Integration User" in every vertical; N3 text; N4 the Support intro only on its page plus the value line; N7 dead path removed; N8 guide and skill wording (PDF not regenerated).
+- Open point for the owner: while the policy is Revoke pending the reconciliation reads "0 confirmed" (the guide records "1 confirmed" only while granted); the lab does not claim more.
