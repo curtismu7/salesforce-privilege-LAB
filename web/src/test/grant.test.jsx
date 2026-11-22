@@ -85,6 +85,7 @@ describe("Grant and revoke page", () => {
     expect(screen.queryByTestId("count-revokePending")).toBeNull();
     expect(screen.getByTestId("queued-note")).toHaveTextContent("In the guide the removal is queued and a refresh shows it");
     expect(screen.getByTestId("delete-pol-0001")).toBeDisabled();
+    expect(text("rec-line")).toMatch(/1 confirmed/); // the last refresh, not recomputed by the delete
     expect(screen.getByTestId("assignments")).toHaveTextContent("Privilege policy"); // access still live in Salesforce
     await user.click(screen.getByTestId("grant-sync"));
     await waitFor(() => expect(screen.getByTestId("last-action")).toHaveTextContent("app.sync"));

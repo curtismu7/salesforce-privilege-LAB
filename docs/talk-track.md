@@ -10,11 +10,11 @@ Omar Reyes is a support engineer at Fabrikam Bank with the Minimum Access profil
 
 ## Beat 2: access for the job
 
-A P1 lands. Omar Reyes makes a request in the lab with a note and an end time (the lab's own step; the lab does not claim Privilege stores the note), and Privilege grants Case Read Access with that end date. Cases now shows three cases with the P1 on top, because the mock Salesforce really holds the assignment. The receipt says Granted and the reconciliation reads 1 confirmed.
+A P1 lands. Omar Reyes makes a request in the lab with a note and an end time (the lab's own step; the lab does not claim Privilege stores the note), and Privilege grants Case Read Access with that end date. Cases now shows three cases with the P1 on top, because the mock Salesforce really holds the assignment. The receipt says Granted and the reconciliation reads 1 confirmed. When the P1 is fixed, End access deletes the policy: it reads "Revoke pending, access still live", the cases are still listed and the reconciliation line is still the last refresh. We are still in beat 2 until you press Refresh receipts: in the guide the removal is queued and a refresh shows it.
 
 ## Beat 3: no access again, and a receipt
 
-The P1 is fixed, so end the access by deleting the policy. The policy reads "Revoke pending, access still live" and Cases still lists the cases: in the guide the removal is queued and a refresh shows it. Press Refresh receipts: the assignment is gone, Cases is denied again, and the receipt reads Expired / Revoked. Nothing ended the access by itself: the end time is only the "until" date on the receipt. Compare "The old way": a permanent set an admin assigned and nobody removed. That panel is a narrative, not something Privilege says.
+After Refresh receipts the assignment is gone, Cases is denied again, and the receipt reads Expired / Revoked (the reconciliation now reads 0 confirmed). Nothing ended the access by itself: the end time is only the "until" date on the receipt. Compare "The old way": a permanent set an admin assigned and nobody removed. That panel is a narrative, not something Privilege says.
 
 ## Connect: three things that all have to be true
 

@@ -45,6 +45,13 @@ describe("shell: banner, header, presenter, talk track", () => {
     await user.click(screen.getByTestId("support-request"));
     await waitFor(() => expect(screen.getByTestId("presenter-beat")).toHaveTextContent("Beat 2 of 3: Access for the job"));
     expect(screen.getByTestId("presenter-say")).toHaveTextContent(/Case Read Access/);
+    expect(screen.getByTestId("presenter-say")).toHaveTextContent(/Revoke pending, access still live.*press Refresh receipts/s);
+    await user.click(screen.getByTestId("support-end-access"));
+    await waitFor(() => expect(text("support-policy-status")).toBe("Revoke pending, access still live"));
+    expect(screen.getByTestId("presenter-beat")).toHaveTextContent("Beat 2 of 3"); // pending is still beat 2: the narration says to press Refresh receipts
+    await user.click(screen.getByTestId("support-refresh"));
+    await waitFor(() => expect(screen.getByTestId("presenter-beat")).toHaveTextContent("Beat 3 of 3: No access again, and a receipt"));
+    expect(screen.getByTestId("presenter-say")).toHaveTextContent(/After Refresh receipts the assignment is gone/);
   });
 
   it("opens the shared talk-track dialog with every step of the script", async () => {

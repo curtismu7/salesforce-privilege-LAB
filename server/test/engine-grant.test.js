@@ -70,6 +70,20 @@ test('delete the policy: the POLICY reads "Revoke pending, access still live" an
   assert.deepEqual(rc.counts, { confirmed: 0 });
 });
 
+test('after End access the reconciliation keeps the LAST refresh ("1 confirmed" at its time) until Refresh receipts, then reads what the engine computes', () => {
+  const e = presetEngine('connected');
+  grant(e);
+  const before = e.snapshot().privilege.reconcile;
+  assert.equal(before.counts.confirmed, 1);
+  run(e, 'policy.delete', { policyId: 'pol-0001' });
+  assert.deepEqual(e.snapshot().privilege.reconcile, before, 'a delete does not recompute it');
+  run(e, 'clock.advance', { minutes: 20 }); run(e, 'app.sync');
+  assert.deepEqual(e.snapshot().privilege.reconcile, before, 'neither does a clock move or a Sync while the removal is queued');
+  run(e, 'app.reconcile');
+  const after = e.snapshot().privilege.reconcile;
+  assert.equal(after.counts.confirmed, 0); assert.ok(after.at > before.at); assert.deepEqual(after.policies, { active: 0, expiredRevoked: 1 });
+});
+
 test('Sync does NOT complete a pending removal: only Refresh receipts (app.reconcile) does, and no clock move or other op does either', () => {
   const e = presetEngine('connected');
   grant(e); run(e, 'policy.delete', { policyId: 'pol-0001' });

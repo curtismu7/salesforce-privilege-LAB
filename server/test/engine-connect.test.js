@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { C, newEngine, presetEngine, run, attempt } from './helpers.js';
 import { OUTCOMES } from '../src/data.js';
+import { SCOPES } from '../src/engine.js';
+import { buildStory } from '../src/story.js';
 
 const signIn = (e, o = {}) => attempt(e, 'wizard.signIn', { consumerKey: C.castConsumerKey, username: C.castAdminUsername, ...o });
 
@@ -120,6 +122,14 @@ test('the consumer key is hidden until the emailed verification code is entered;
   assert.equal(r.consumerKey, C.castConsumerKey);
   assert.match(r.label, /MOCK/);
   assert.equal(e.snapshot().salesforce.externalClientApp.consumerKey, C.castConsumerKey);
+});
+
+test('the allowed OAuth scopes are exactly api and refresh_token (offline_access): nothing the guide does not name', () => {
+  assert.deepEqual(SCOPES, ['api', 'refresh_token']);
+  assert.deepEqual(buildStory(C, 'finance').scopes, ['api', 'refresh_token']);
+  const e = prepared();
+  for (const bad of ['web', 'full', 'id', 'openid', 'offline_access']) assert.equal(attempt(e, 'sf.setScopes', { scopes: ['api', bad] }).code, 'bad_scopes', bad);
+  assert.equal(attempt(e, 'sf.setScopes', { scopes: ['api', 'refresh_token'] }).ok, true);
 });
 
 test('the wizard order holds: org URL, then key, then sign-in, then create; one application per org; the name needs 4 characters', () => {

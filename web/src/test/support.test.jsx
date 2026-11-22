@@ -64,6 +64,10 @@ describe("Support P1 page: three panels together", () => {
     expect(screen.getByTestId("cases-list")).toBeInTheDocument(); // still live
     expect(text("support-receipts")).toMatch(/Granted$/); // the receipt never reads a pending status
     expect(text("support-receipts")).not.toMatch(/Revoke pending|Revoked|then/);
+    // the reconciliation line is still the last refresh (the grant's), not recomputed by the delete
+    expect(text("support-confirmed")).toBe("1 confirmed");
+    const recLine = text("support-rec");
+    expect(recLine).toMatch(/Reconciliation, 2026-11-02 09:\d\d UTC: 1 confirmed/);
     expect(screen.getByTestId("support-refresh-note")).toHaveTextContent("In the guide the removal is queued and a refresh shows it.");
     // mutant W01: pending keeps beat 2 (access for the job), and nothing refreshes by itself
     expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
@@ -72,6 +76,7 @@ describe("Support P1 page: three panels together", () => {
     expect(text("support-policy-status")).toBe("Revoke pending, access still live");
     expect(screen.getByTestId("cases-list")).toBeInTheDocument();
     expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
+    expect(text("support-rec")).toBe(recLine);
     expect(h.lab.calls.filter((c) => c.path === "/api/actions").map((c) => c.body.op)).toEqual(["support.requestAccess", "policy.delete"]);
     await user.click(screen.getByTestId("support-refresh"));
     await screen.findByTestId("cases-denied");

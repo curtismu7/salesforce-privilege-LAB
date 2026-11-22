@@ -49,7 +49,7 @@ unique. Then: app, Users tab, Add Users, tick the user; make sure a Salesforce u
 ## Grant and revoke
 
 - Grant: Users tab, select the user, Grant Permission, Permission Sets tab, tick a plain set (no license needed),
-  choose an end time and confirm (the default was about a year). Choose an end time; the guide recorded the end date on the receipt but we did not wait to see it end access, so end it by deleting the policy. "Already has this permission set" means
+  choose an end time and confirm (the default was about a year; the guide recorded the end date on the receipt but we did not wait to see it end access, so end it by deleting the policy). "Already has this permission set" means
   the user holds it already; check Active Policies and Access Receipts.
 - What the grant dialog showed (observed once, placeholders for the names): `<plain-set>` "Permission set · Salesforce · 0 of 4 seats free"; `<needs-license-set>` "Permission set · Needs a permission set license"; `<already-assigned-set>` "Already has this permission set", greyed out; `<other-licence-set>` "Permission set · Cloud Integration User · 1 of 1 seats free", refused with "License Salesforce ≠ Cloud Integration User" (a different user licence than the user holds).
 - Confirm: Access Receipts shows Granted and reconciliation reads 1 confirmed; Salesforce Permission Set
@@ -82,4 +82,4 @@ unique. Then: app, Users tab, Add Users, tick the user; make sure a Salesforce u
 - Do not put real org URLs, usernames or emails in anything committed to a public repo; use placeholders.
 - Granting, revoking and deleting policies change a real system. Only do them when the user asks, one step at a time,
   and say which Delete you mean.
-- Not verified: granting profiles or permission set groups, approval flows, Set Up SSO.
+- Not verified: granting profiles or permission set groups, approval flows, Set Up SSO, the end time ending access by itself.

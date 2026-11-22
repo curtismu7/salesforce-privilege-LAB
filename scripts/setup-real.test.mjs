@@ -100,17 +100,40 @@ test('a bad value stops BEFORE anything is touched: with --force a bad Consumer 
   assert.ok(fs.readdirSync(path.join(dir, 'secrets')).every((f) => !f.includes('.new.')), 'no temporary file is left');
 });
 
-test('a failure while building the new files (here: secrets/ not writable) leaves the old setup untouched', { skip: process.getuid?.() === 0 }, () => {
-  const dir = tmp();
-  run(dir, [], fed('https://stub-org.develop.my.salesforce.example'));
-  const old = snapshot(dir);
-  fs.chmodSync(path.join(dir, 'secrets'), 0o500);
-  try {
-    const r = run(dir, ['--force'], fed('https://other.develop.my.salesforce.example'));
-    assert.notEqual(r.status, 0);
-    assert.deepEqual(snapshot(dir), old); assert.equal(baks(dir).length, 0);
+test('a failure in the middle of the move restores the old key, certificate and .env exactly, removes whatever was placed, and leaves no temporary file (the restore trap)', () => {
+  for (const point of ['after-backup', 'after-key']) {
+    const dir = tmp();
+    run(dir, [], fed('https://stub-org.develop.my.salesforce.example'));
+    const old = snapshot(dir);
+    const r = run(dir, ['--force'], { ...fed('https://other.develop.my.salesforce.example'), SFPRIV_SETUP_TEST_FAIL: point });
+    assert.equal(r.status, 5, `${point}: ${r.stderr}`); assert.match(r.stderr, /forced failure/);
+    assert.deepEqual(snapshot(dir), old, `${point}: the old files are back, byte for byte`);
+    assert.equal(baks(dir).length, 0, `${point}: no backup is left behind (it was moved back)`);
+    assert.equal(mode(path.join(dir, 'secrets/sf-private-key.pem')), '600'); assert.equal(mode(path.join(dir, '.env')), '600');
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'secrets')).sort(), ['sf-lab-certificate.crt', 'sf-private-key.pem'], `${point}: no temporary file`);
     assert.ok(!(r.stdout + r.stderr).includes('other.develop'));
-  } finally { fs.chmodSync(path.join(dir, 'secrets'), 0o700); }
+  }
+});
+
+test('an EXISTING secrets/ directory (the repo ships one, mode 755) is tightened to 700', () => {
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, 'secrets'), { mode: 0o755 }); fs.chmodSync(path.join(dir, 'secrets'), 0o755);
+  assert.equal(mode(path.join(dir, 'secrets')), '755');
+  assert.equal(run(dir, [], fed('https://stub-org.develop.my.salesforce.example')).status, 0);
+  assert.equal(mode(path.join(dir, 'secrets')), '700');
+  // a refused run (bad value) does not touch it
+  const d2 = tmp(); fs.mkdirSync(path.join(d2, 'secrets')); fs.chmodSync(path.join(d2, 'secrets'), 0o755);
+  assert.equal(run(d2, [], { ...fed('https://x.example'), SFPRIV_SETUP_CONSUMER_KEY: 'bad value' }).status, 4);
+  assert.equal(mode(path.join(d2, 'secrets')), '755');
+});
+
+test('the checks do not depend on the caller\'s locale: under LC_ALL=en_US.UTF-8 and LANG=en_US.UTF-8 the non-ASCII values are still refused', () => {
+  const loc = { LC_ALL: 'en_US.UTF-8', LANG: 'en_US.UTF-8' };
+  for (const over of [{ SFPRIV_SETUP_CONSUMER_KEY: '3MVG9é' }, { SFPRIV_SETUP_USERNAME: 'üser@x.example' }, { SFPRIV_SETUP_ORG_URL: 'https://exämple.example' }, { SFPRIV_SETUP_ORG_URL: 'https://x.example;id' }]) {
+    const dir = tmp(); const r = run(dir, [], { ...fed('https://stub-org.develop.my.salesforce.example'), ...loc, ...over });
+    assert.equal(r.status, 4, JSON.stringify(over)); assert.deepEqual(fs.readdirSync(dir), []);
+  }
+  const dir = tmp(); assert.equal(run(dir, [], { ...fed('https://stub-org.develop.my.salesforce.example'), ...loc }).status, 0, 'good ASCII values pass in that locale too');
 });
 
 test('bad values are refused without echoing them, before any file or folder is made: $, ;, spaces, non-ASCII, a path, a port, user info, plain http, an empty label', () => {

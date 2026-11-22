@@ -14,7 +14,7 @@
 # Without --force it refuses to overwrite any of the three files. With --force each existing one is first moved to <name>.bak.<time>.<pid>.<n> (the key and
 # the .env keep mode 600), and if any later step fails the backups are put back, so a working setup is never lost.
 # Test hook, for the script test only: SFPRIV_SETUP_NONINTERACTIVE=1 takes the three values from SFPRIV_SETUP_ORG_URL, SFPRIV_SETUP_CONSUMER_KEY
-# and SFPRIV_SETUP_USERNAME instead of asking.
+# and SFPRIV_SETUP_USERNAME instead of asking. SFPRIV_SETUP_TEST_FAIL=after-backup|after-key forces a failure at that point so the restore can be tested.
 set -euo pipefail
 set +x
 export LC_ALL=C
@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=1 ;;
     --host-path) HOSTPATH=1 ;;
     --dir) shift; [ $# -gt 0 ] || { echo "setup-real: --dir needs a directory" >&2; exit 2; }; DIR="$1" ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "setup-real: unknown option $1 (try --help)" >&2; exit 2 ;;
   esac
   shift
@@ -106,6 +106,7 @@ case "$ORG" in *..*) fail "the org URL has an empty host label" ;; esac
 
 # 2. Build the new files next to the real ones, under temporary names.
 mkdir -p -m 700 "$DIR/secrets"
+chmod 700 "$DIR/secrets"   # an existing secrets/ (the repo ships one) is tightened too, after the symlink check above
 SUFFIX="$$"
 NEWKEY="$KEY.new.$SUFFIX"; NEWCRT="$CRT.new.$SUFFIX"; NEWENV="$ENVF.new.$SUFFIX"
 BAK=(); ORIG=(); PLACED=()
@@ -133,7 +134,10 @@ for f in "$KEY" "$ENVF" "$CRT"; do
     b="$(backup_of "$f")"; mv "$f" "$b"; chmod 600 "$b"; BAK+=("$b"); ORIG+=("$f")
   fi
 done
+testfail() { [ "${SFPRIV_SETUP_TEST_FAIL:-}" = "$1" ] && { echo "setup-real: forced failure ($1) for the restore test" >&2; exit 5; }; return 0; }
+testfail after-backup
 mv "$NEWKEY" "$KEY"; PLACED+=("$KEY")
+testfail after-key
 mv "$NEWCRT" "$CRT"; PLACED+=("$CRT")
 mv "$NEWENV" "$ENVF"; PLACED+=("$ENVF")
 

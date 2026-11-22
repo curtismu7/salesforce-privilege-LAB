@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { C, presetEngine, run, attempt, newEngine, withServer, act, get, post } from './helpers.js';
 import { VERTICALS } from '../src/cast.js';
-import { LAB_START } from '../src/engine.js';
+import { LAB_START, parseIsoInstant } from '../src/engine.js';
 import { scenarioById, runScenario } from '../src/scenarios.js';
 
 const END = '2026-11-02T11:00:00Z';
@@ -97,7 +97,8 @@ test('the end time must be an ISO 8601 date and time with Z or an offset, on a w
   const nowIso = new Date(LAB_START + e.snapshot().clock.nowMin * 60000).toISOString();
   for (const bad of ['', 'tomorrow', 'x'.repeat(41), nowIso, '2026-11-02T09:00:00Z', '2025-01-01T00:00:00Z', '2030-01-01T00:00:00Z', 7, null, undefined,
     '2026-11-02 11:00:00', '2026-11-02T11:00:00', '2026-11-02', '11/02/2026 11:00', '2026-11-02T11:00', 'Nov 2 2026 11:00 UTC', '2026-11-02T11:00:00 Z', '2026-02-31T11:00:00Z',
-    '2026-11-02T11:00:30Z', '2026-11-02T11:00:00.500Z']) {
+    '2026-11-02T11:00:30Z', '2026-11-02T11:00:00.500Z',
+    '2026-11-02T24:00:00Z', '2026-13-02T11:00:00Z', '2026-11-31T11:00:00Z', '2026-00-10T11:00:00Z', '2026-11-00T11:00:00Z', '2026-11-02T11:60:00Z', '2026-11-02T11:00:60Z', '2026-11-02T11:00:00+24:00', '2026-11-02T11:00:00+01:60', '2027-02-29T11:00:00Z']) {
     const x = request(e, { endAt: bad }); assert.equal(x.ok, false, String(bad)); assert.equal(x.code, 'bad_end_time', String(bad));
   }
   assert.equal(e.snapshot().privilege.policies.length, 0); assert.equal(sup(e).canSeeCases, false);
@@ -215,4 +216,11 @@ test('over HTTP: /api/actions is the one write; a hostile note comes back as tex
     const dup = await (await act(url, 'support.requestAccess', { note: 'x', endAt: END }, { refusalsAs200: true })).json();
     assert.equal(dup.ok, false); assert.equal(dup.error, 'already_has_permission_set');
   });
+});
+
+test('endAt is parsed strictly: calendar-invalid dates and out-of-range components are NaN, never rolled over; leap days, offsets and fractions are understood', () => {
+  for (const bad of ['2026-02-31T10:00:00Z', '2026-11-02T24:00:00Z', '2027-02-29T10:00:00Z', '2100-02-29T10:00:00Z', '2026-04-31T10:00:00Z', '2026-11-02T10:00:60Z', '2026-11-02T10:00:00+24:00', '2026-11-02T10:00:00-00:60', '2026-11-02', '', 7, null]) assert.ok(Number.isNaN(parseIsoInstant(bad)), String(bad));
+  assert.equal(parseIsoInstant('2028-02-29T10:00:00Z'), Date.UTC(2028, 1, 29, 10)); assert.equal(parseIsoInstant('2000-02-29T00:00:00Z'), Date.UTC(2000, 1, 29));
+  assert.equal(parseIsoInstant('2026-11-02T12:30:00+01:30'), Date.UTC(2026, 10, 2, 11)); assert.equal(parseIsoInstant('2026-11-02T10:00:00.250Z'), Date.UTC(2026, 10, 2, 10, 0, 0, 250));
+  assert.equal(parseIsoInstant('2026-11-02T10:00Z'), Date.UTC(2026, 10, 2, 10));
 });

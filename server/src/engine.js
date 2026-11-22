@@ -47,7 +47,19 @@ const detail = (id) => ({ id, ...OUTCOMES[id] });
 // The support engineer of the Support P1 story: the demo user A (Salesforce user sfu-2, Privilege user pu-a), on the Minimum Access profile.
 // The receipt status the guide records once the policy count has dropped to 0 (its "Expired / Revoked" counter).
 export const RECEIPT_ENDED = 'Expired / Revoked';
-const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
+const ISO_8601 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:\d{2})$/;
+// A strict ISO 8601 instant (Z or an offset): every component is checked, so 2026-02-31, T24:00, :60 and an offset over 23:59 are NaN, never rolled over.
+export function parseIsoInstant(text) {
+  const m = typeof text === 'string' && text.length <= 40 ? ISO_8601.exec(text) : null;
+  if (!m) return NaN;
+  const [y, mo, d, h, mi, s, ms] = [m[1], m[2], m[3], m[4], m[5], m[6] ?? '0', (m[7] ?? '0').padEnd(3, '0')].map(Number);
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
+  if (mo < 1 || mo > 12 || d < 1 || d > days || h > 23 || mi > 59 || s > 59) return NaN;
+  let offMin = 0;
+  if (m[8] !== 'Z') { const oh = Number(m[8].slice(1, 3)); const om = Number(m[8].slice(4, 6)); if (oh > 23 || om > 59) return NaN; offMin = (m[8][0] === '-' ? -1 : 1) * (oh * 60 + om); }
+  return Date.UTC(y, mo - 1, d, h, mi, s, ms) - offMin * 60000;
+}
 const ENGINEER = Object.freeze({ privilegeUserId: 'pu-a', requestMax: LIMITS.requests });
 
 export class Engine {
@@ -385,7 +397,7 @@ export class Engine {
     this._connect();
     this._call('GET', `/services/data/${SF_API}/query?q=SELECT Id, AssigneeId, PermissionSetId FROM PermissionSetAssignment`, null, 200, { totalSize: this.sf.assignments.length, records: this.sf.assignments.map((x) => ({ Id: x.id, AssigneeId: x.userId, PermissionSetId: x.setId })) });
     const done = this._processRevocations();
-    this._reconcile();
+    this._reconcile(true);
     this._log('visitor', 'app.reconcile', `Receipts refreshed: ${done.length} removal(s) done`);
     return { removed: done, reconcile: this._reconcileView() };
   }
@@ -409,7 +421,7 @@ export class Engine {
     asg.policyId = pol.id;
     this.pv.policies.push(pol);
     this.pv.receipts.push({ id: `rcpt-${String(++this.n.rcpt).padStart(4, '0')}`, policyId: pol.id, privilegeUserId: pol.privilegeUserId, sfUserId: user.id, setId: set.id, setLabel: set.label, startAt: pol.startAt, endAt: pol.endAt, status: 'Granted', history: [{ at: this.nowMin, status: 'Granted' }] });
-    this._reconcile();
+    this._reconcile(true);
     this._log('visitor', 'policy.grant', `${set.label} granted to ${user.name} until ${iso(pol.endAt)}`);
     return { policyId: pol.id, endAt: iso(pol.endAt), receipt: 'Granted' };
   }
@@ -423,7 +435,6 @@ export class Engine {
     if (!p) throw refuse('unknown_policy', 'No such policy', 404);
     if (p.status !== 'active') throw refuse('policy_not_active', 'That policy is already ended or being revoked', 409);
     p.status = 'revoke_pending';
-    this._reconcile();
     this._log('visitor', 'policy.delete', `Policy ${p.id} deleted: revoke pending, access still live`);
     return { status: 'Revoke pending, access still live' };
   }
@@ -452,8 +463,11 @@ export class Engine {
   // What Privilege believes after a reconcile: of the assignments Salesforce reports for the app's linked users (apart from the permission set linked to the
   // app itself), `confirmed` are the ones an active policy accounts for.
   // "1 confirmed" therefore holds only while the Salesforce assignment really exists.
-  _reconcile() {
+  // While a deleted policy's removal is queued the last refresh stays as it was (the guide says nothing about reconciliation then); only a grant or
+  // Refresh receipts (`force`) recomputes it.
+  _reconcile(force = false) {
     const a = this.pv.app; if (!a) return;
+    if (!force && this.pv.policies.some((p) => p.status === 'revoke_pending')) return;
     const eca = this.sf.eca;
     const linked = new Set(this.pv.rows.filter((r) => r.status === 'linked').map((r) => r.sfUserId));
     const counts = { confirmed: 0 };
@@ -475,8 +489,8 @@ export class Engine {
   supportRequestAccess({ note, endAt }) {
     this._app();
     const n = typed(note, 'note', LIMITS.note);
-    if (typeof endAt !== 'string' || endAt.length > 40 || !ISO_8601.test(endAt)) throw refuse('bad_end_time', 'The end time must be an ISO 8601 date and time with Z or an offset, for example 2026-11-02T11:00:00Z');
-    const t = Date.parse(endAt);
+    const t = parseIsoInstant(endAt);
+    if (Number.isNaN(t) && !(typeof endAt === 'string' && ISO_8601.test(endAt))) throw refuse('bad_end_time', 'The end time must be an ISO 8601 date and time with Z or an offset, for example 2026-11-02T11:00:00Z');
     if (!Number.isFinite(t) || (t - LAB_START) % 60000 !== 0) throw refuse('bad_end_time', 'The end time must be a real date and time on a whole minute');
     const mins = (t - LAB_START) / 60000 - this.nowMin;
     if (mins < 1 || mins > LIMITS.grantMaxMin) throw refuse('bad_end_time', 'The end time must be after the lab clock now and within 366 days');
