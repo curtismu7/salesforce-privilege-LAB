@@ -1,0 +1,169 @@
+{
+  "schema": "diagram-studio/1",
+  "id": "grant-expire-revoke",
+  "title": "Grant, expire or revoke a permission set",
+  "lede": "{{castAName}} is granted {{castPermSet}} for a window and loses it again: by deleting the policy (observed) or, in this lab, when the window closes (lab-invented). Steps marked lab-invented are not from the guide. Simulated; hosts are examples.",
+  "groups": {
+    "you": {
+      "label": "The admin",
+      "color": "blue"
+    },
+    "gateway": {
+      "label": "PingOne Privilege (mock)",
+      "color": "red"
+    },
+    "upstream": {
+      "label": "Salesforce org (mock)",
+      "color": "grey"
+    },
+    "audit": {
+      "label": "Record",
+      "color": "grey"
+    }
+  },
+  "nodes": [
+    {
+      "id": "admin",
+      "label": "Org admin ({{castAdminName}})",
+      "group": "you",
+      "x": 0,
+      "y": 160
+    },
+    {
+      "id": "priv",
+      "label": "PingOne Privilege (mock): policy and receipts",
+      "group": "gateway",
+      "x": 420,
+      "y": 160
+    },
+    {
+      "id": "sf",
+      "label": "Salesforce org (mock): permission set assignments",
+      "group": "upstream",
+      "x": 840,
+      "y": 160
+    },
+    {
+      "id": "rec",
+      "label": "Access receipts",
+      "group": "audit",
+      "x": 420,
+      "y": 380
+    },
+    {
+      "id": "reap",
+      "label": "Reaper (lab-invented)",
+      "group": "audit",
+      "x": 840,
+      "y": 380
+    }
+  ],
+  "edges": [
+    {
+      "source": "admin",
+      "target": "priv",
+      "label": "Grant {{castPermSet}} for a window"
+    },
+    {
+      "source": "priv",
+      "target": "sf",
+      "label": "Assign the permission set"
+    },
+    {
+      "source": "priv",
+      "target": "rec",
+      "label": "Receipt: Granted"
+    },
+    {
+      "source": "reap",
+      "target": "sf",
+      "label": "Window closed: remove it"
+    },
+    {
+      "source": "admin",
+      "target": "priv",
+      "label": "Delete the policy"
+    },
+    {
+      "source": "priv",
+      "target": "sf",
+      "label": "Reconcile removes it"
+    },
+    {
+      "source": "priv",
+      "target": "rec",
+      "label": "Receipt: Expired / Revoked"
+    },
+    {
+      "source": "sf",
+      "target": "priv",
+      "label": "Reconcile finds hand-assigned access"
+    }
+  ],
+  "steps": [
+    {
+      "title": "Grant for a window",
+      "what": "The admin grants {{castPermSet}} to {{castAName}} through a policy with a duration. The default Privilege offered was about a year, so pick the shortest to show expiry. Some sets are refused: one that needs a permission set license, one under another user licence, one the user already holds.",
+      "edges": [
+        0
+      ],
+      "basis": "observed"
+    },
+    {
+      "title": "The assignment is made in Salesforce",
+      "what": "Privilege signs in and assigns the permission set to the user. In Salesforce the user's Permission Set Assignments lists it.",
+      "edges": [
+        1
+      ],
+      "basis": "observed"
+    },
+    {
+      "title": "A receipt says Granted",
+      "what": "Access Receipts shows user, set, end date and status Granted, and the reconciliation line reads 1 confirmed.",
+      "edges": [
+        2
+      ],
+      "basis": "observed"
+    },
+    {
+      "title": "The reaper removes access when the window closes",
+      "what": "LAB-INVENTED: when the window on the lab clock closes, the lab removes the assignment by itself. The guide observed removal only by deleting the policy.",
+      "edges": [
+        3
+      ],
+      "basis": "lab-invented"
+    },
+    {
+      "title": "Delete the policy: Revoke pending",
+      "what": "There is no Revoke button: the admin deletes the policy. The receipt reads Revoke pending, access still live, and the assignment is still in Salesforce.",
+      "edges": [
+        4
+      ],
+      "basis": "observed"
+    },
+    {
+      "title": "The next reconcile or Sync removes the assignment",
+      "what": "The assignment is removed in Salesforce and the policy count drops to 0, Expired / Revoked shows 1. LAB-INVENTED: that the next reconcile or Sync is what clears it; the guide observed it clearing after a wait.",
+      "edges": [
+        5
+      ],
+      "basis": "lab-invented"
+    },
+    {
+      "title": "The receipt moves to Expired / Revoked",
+      "what": "Access Receipts shows the policy under Expired / Revoked: the policy count drops to 0 and Expired / Revoked shows 1.",
+      "edges": [
+        6
+      ],
+      "basis": "observed"
+    },
+    {
+      "title": "Reconcile finds access assigned by hand",
+      "what": "LAB-INVENTED: access an admin assigns by hand in Salesforce is found by a reconcile; the lab calls it discovered, or orphaned if Privilege once granted it, and lets you revoke it. The product's own wording and handling were not observed.",
+      "edges": [
+        7
+      ],
+      "basis": "lab-invented"
+    }
+  ]
+}

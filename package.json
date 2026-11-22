@@ -1,0 +1,28 @@
+{
+  "name": "salesforce-privilege-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Salesforce Privilege LAB: connect a Salesforce Developer org to PingOne Privilege, then grant and revoke a permission set for a time window. A mock Salesforce org and a mock Privilege app on a lab clock, with the setup knowledge that went wrong and why. Mock by default; an owner-run, read-only Real read. No tenant, no outbound network in Mock.",
+  "license": "MIT",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "start": "npm start -w server",
+    "build": "npm run build -w web",
+    "test": "npm test -w server && npm test -w web && node --test scripts/*.test.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "reset": "node scripts/reset.mjs",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "talk-track": "node scripts/build-talk-track.mjs",
+    "content-pack": "node scripts/build-content-pack.mjs && node scripts/validate-content-pack.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
+  }
+}

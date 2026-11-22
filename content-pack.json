@@ -1,0 +1,551 @@
+{
+  "schema": "demo-content-pack/1",
+  "id": "salesforce-privilege-lab",
+  "title": "Salesforce Privilege LAB",
+  "version": "0.1.0",
+  "demo": {
+    "id": "salesforce-privilege-lab",
+    "name": "Salesforce Privilege LAB",
+    "catalog": "D000",
+    "baseUrl": "http://localhost:7835",
+    "doctor": "/api/health",
+    "tags": [
+      "salesforce",
+      "privilege",
+      "jit",
+      "permission-set",
+      "jwt-bearer",
+      "simulated"
+    ]
+  },
+  "glossary": [
+    {
+      "id": "jwt-signin",
+      "term": "JWT-bearer sign-in",
+      "definition": "Privilege signs in to Salesforce as one integration user with a signed JWT: no password, no consent screen. It works only when the External Client App has JWT Bearer Flow with Privilege's certificate and the scopes api and refresh_token, offline_access; Permitted Users is \"Admin approved users are pre-authorized\"; and a permission set is linked to the app and assigned to the signing-in user. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "External Client App"
+      ]
+    },
+    {
+      "id": "invalid-grant",
+      "term": "invalid_grant",
+      "definition": "The generic error (\"user hasn't approved this consumer\") Salesforce gave when pre-authorization, the permission set link or the assignment was missing, or when a change had not propagated (up to 10 minutes). Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": []
+    },
+    {
+      "id": "email-match",
+      "term": "Email matching",
+      "definition": "Privilege links a Salesforce user to a Privilege user only when the emails are identical; Federation ID did not override it, and an email on two Privilege records is refused (\"its email matches 2 Privilege users\"). Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "link users"
+      ]
+    },
+    {
+      "id": "seats",
+      "term": "Seats and usernames",
+      "definition": "The observed Developer org had 4 Salesforce user seats, and a Salesforce username is unique across all orgs (\"Duplicate username\"). Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": []
+    },
+    {
+      "id": "permission-set",
+      "term": "Permission set grant rules",
+      "definition": "A grant is refused for a set that needs a permission set license, whose user license differs from the user's, or that the user already holds. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": []
+    },
+    {
+      "id": "policy-delete",
+      "term": "Revoke by deleting the policy",
+      "definition": "There is no Revoke button: deleting the policy shows \"Revoke pending, access still live\" until the next reconcile or Sync removes the assignment. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "revoke pending"
+      ]
+    },
+    {
+      "id": "reaper",
+      "term": "Expiry",
+      "definition": "A grant carries a window on the lab clock; when it closes the mock removes the assignment. The lab's removal timing is lab-invented. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "time-bound access"
+      ]
+    },
+    {
+      "id": "receipt",
+      "term": "Receipt and reconciliation",
+      "definition": "Access Receipts shows user, set, end date and status (Granted, then Expired or Revoked); reconciliation reads observed, confirmed, discovered and orphaned. Discovered and orphaned are the lab's own names for access assigned by hand. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "access receipt"
+      ]
+    },
+    {
+      "id": "drift",
+      "term": "Drift",
+      "definition": "Access assigned by hand in Salesforce, outside any policy. How the product classifies it was not observed: the lab's reading is lab-invented. Observed on one org and one Privilege build, UNVERIFIED as a product claim.",
+      "aliases": [
+        "discovered",
+        "orphaned"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "setup-guide",
+      "title": "docs/setup-guide.md: connecting a Salesforce Developer org to PingOne Privilege",
+      "url": "docs/setup-guide.md",
+      "kind": "guide",
+      "use": "A file in this lab's own repository (not a web page): every behaviour the mock models, from one real setup done once.",
+      "status": "read",
+      "checked": "2026-11-22"
+    }
+  ],
+  "cards": [
+    {
+      "id": "try-happy-path",
+      "label": "Scenario 1: Connect, link, grant, revoke",
+      "description": "The whole cycle once, with nothing going wrong: connect the org, link Omar Reyes, grant Ledger Reader for a window, see it in Salesforce, delete the policy and see it gone. The guide observed the removal but not which action clears \"Revoke pending\": the lab's \"the next reconcile removes it\" is its own reading, so this card is lab-inferred.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "permission-set",
+        "receipt"
+      ],
+      "story": "S01"
+    },
+    {
+      "id": "try-fail-client-id",
+      "label": "Scenario 2: Sign-in fails: invalid_client_id",
+      "description": "The Consumer Key was copied wrongly. Salesforce answers invalid_client_id; copy it again.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S02"
+    },
+    {
+      "id": "try-fail-not-propagated",
+      "label": "Scenario 3: Sign-in fails: not propagated yet",
+      "description": "Everything is right, but the app is a minute old. invalid_grant, \"user hasn't approved this consumer\", until the lab clock passes 10 minutes.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S03"
+    },
+    {
+      "id": "try-fail-jwt-not-enabled",
+      "label": "Scenario 4: Sign-in fails: JWT Bearer Flow not enabled",
+      "description": "The app has no JWT Bearer Flow or no certificate. Enable it and upload the .crt.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S04"
+    },
+    {
+      "id": "try-fail-not-preauthorized",
+      "label": "Scenario 5: Sign-in fails: not pre-authorized",
+      "description": "Permitted Users was left at \"All users can self-authorize\", which does not work for JWT. invalid_grant.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S05"
+    },
+    {
+      "id": "try-fail-refresh-scope",
+      "label": "Scenario 6: Sign-in fails: refresh_token scope missing",
+      "description": "Without refresh_token, offline_access Salesforce rejects the flow.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S06"
+    },
+    {
+      "id": "try-fail-cert-mismatch",
+      "label": "Scenario 7: Sign-in fails: certificate does not match the key",
+      "description": "The wizard was refreshed (a new key), so the certificate uploaded to the app no longer matches. Upload the new .crt.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S07"
+    },
+    {
+      "id": "try-fail-cert-expired",
+      "label": "Scenario 8: Sign-in fails: certificate expired",
+      "description": "The wizard's certificate is valid two years. Move the lab clock past that and the same sign-in fails; regenerate and upload a new one.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S08"
+    },
+    {
+      "id": "try-fail-wrong-username",
+      "label": "Scenario 9: Sign-in fails: the email was given, not the Username",
+      "description": "The Authorized User is the exact Username from Setup, Users; the email address does not work.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S09"
+    },
+    {
+      "id": "try-fail-permset-link",
+      "label": "Scenario 10: Sign-in fails: permission set not linked, then not assigned",
+      "description": "Both look the same from outside: invalid_grant. The permission set must be linked to the app and assigned to the signing-in user.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ],
+      "story": "S10"
+    },
+    {
+      "id": "try-duplicate-email",
+      "label": "Scenario 11: Link refused: its email matches 2 Privilege users",
+      "description": "Two Privilege records share an email, so neither links. Federation ID does not help; pick a user whose email is unique.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "email-match"
+      ],
+      "story": "S11"
+    },
+    {
+      "id": "try-link-pitfalls",
+      "label": "Scenario 12: Link pitfalls: Federation ID, duplicate username, no seats",
+      "description": "A Federation ID does not rescue a mismatched email, a Salesforce username is unique across all orgs, and the observed org had 4 seats.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "email-match",
+        "seats"
+      ],
+      "story": "S12"
+    },
+    {
+      "id": "try-grant-rules",
+      "label": "Scenario 13: Grant refused: license rules and \"Already has\"",
+      "description": "Some permission sets need a permission set license, some belong to a different user license, and one the user already holds cannot be granted twice.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "permission-set"
+      ],
+      "story": "S13"
+    },
+    {
+      "id": "try-grant-expires",
+      "label": "Scenario 14: Grant, then expire by itself",
+      "description": "Nobody deletes the policy: the window closes and the reaper removes the assignment.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "reaper",
+        "receipt"
+      ],
+      "story": "S14"
+    },
+    {
+      "id": "try-revoke-by-delete",
+      "label": "Scenario 15: Revoke by deleting the policy",
+      "description": "There is no Revoke button: delete the policy. First \"Revoke pending, access still live\", then the next reconcile removes it (the lab's reading, so this card is lab-inferred).",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "policy-delete",
+        "receipt"
+      ],
+      "story": "S15"
+    },
+    {
+      "id": "try-hand-assigned-drift",
+      "label": "Scenario 16: Drift: a permission set assigned by hand",
+      "description": "An admin assigns a permission set in Salesforce without a Privilege policy. Reconcile finds it; it can be revoked. Discovered and orphaned are the lab's names for it.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "drift"
+      ],
+      "story": "S16"
+    },
+    {
+      "id": "try-sign-in-breaks-later",
+      "label": "Scenario 17: Downstream failure: Privilege can no longer sign in",
+      "description": "Two years on the certificate expires. A new grant fails with a structured 502, a grant whose window closed cannot be removed, and both are fixed by replacing the certificate.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "jwt-signin"
+      ],
+      "story": "S17"
+    },
+    {
+      "id": "page-connect",
+      "label": "Connect: the wizard rehearsal",
+      "description": "Org URL, key and certificate, the External Client App, then the sign-in check: every failure comes back with its cause and the exact fix. Each outcome says whether it was observed or lab-inferred.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#connect"
+      },
+      "terms": [
+        "jwt-signin",
+        "invalid-grant"
+      ]
+    },
+    {
+      "id": "page-link",
+      "label": "Link: Add Users and Sync",
+      "description": "Add a Privilege user and Sync: identical email only, the shared-email refusal, the four licence seats and the duplicate-username refusal.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#link"
+      },
+      "terms": [
+        "email-match",
+        "seats"
+      ]
+    },
+    {
+      "id": "page-grant",
+      "label": "Grant and revoke",
+      "description": "Grant a permission set for a window on the lab clock, watch the receipt and the reconciliation, delete the policy (Revoke pending), move the clock, assign one by hand and see the drift. Expiry by itself and the drift names are lab-invented and marked.",
+      "group": "try-it",
+      "action": {
+        "type": "route",
+        "href": "/#grant"
+      },
+      "terms": [
+        "permission-set",
+        "policy-delete",
+        "reaper",
+        "receipt",
+        "drift"
+      ]
+    },
+    {
+      "id": "page-diagram",
+      "label": "Diagrams",
+      "description": "Two diagrams loaded by name from the server: connect and link, and grant, expire and revoke. Movable boxes, Simulate, speed, Reset. Lab-invented arrows are marked.",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#diagram"
+      },
+      "terms": [
+        "jwt-signin",
+        "policy-delete",
+        "reaper"
+      ]
+    },
+    {
+      "id": "page-real",
+      "label": "Real: one read of your own org (owner only)",
+      "description": "Switch to Real, type the org host to confirm, and read one org's permission sets and users. Read-only, one origin, the key and the token are never shown.",
+      "group": "reference",
+      "action": {
+        "type": "route",
+        "href": "/#real"
+      },
+      "terms": [
+        "jwt-signin"
+      ]
+    },
+    {
+      "id": "concept-presenter",
+      "label": "Presenter mode and the talk track",
+      "description": "Press P for presenter mode (the simulation banner stays) and open the talk track: seven parts, each marked observed or lab-invented.",
+      "group": "concept",
+      "action": {
+        "type": "route",
+        "href": "/#story"
+      },
+      "terms": [
+        "reaper",
+        "drift"
+      ]
+    },
+    {
+      "id": "ref-doctor",
+      "label": "Doctor and health",
+      "description": "Preflight checks and the demo-health/1 endpoint.",
+      "group": "setup",
+      "action": {
+        "type": "route",
+        "href": "/api/health"
+      }
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "connect-and-link",
+      "label": "Connect an org and link a user",
+      "href": "/#diagram/connect-and-link"
+    },
+    {
+      "id": "grant-expire-revoke",
+      "label": "Grant, expire or revoke a permission set",
+      "href": "/#diagram/grant-expire-revoke"
+    }
+  ],
+  "stories": [
+    {
+      "id": "S01",
+      "title": "Connect, link, grant, revoke",
+      "say": "The whole cycle once, with nothing going wrong: connect the org, link Omar Reyes, grant Ledger Reader for a window, see it in Salesforce, delete the policy and see it gone. The guide observed the removal but not which action clears \"Revoke pending\": the lab's \"the next reconcile removes it\" is its own reading, so this card is lab-inferred."
+    },
+    {
+      "id": "S02",
+      "title": "Sign-in fails: invalid_client_id",
+      "say": "The Consumer Key was copied wrongly. Salesforce answers invalid_client_id; copy it again."
+    },
+    {
+      "id": "S03",
+      "title": "Sign-in fails: not propagated yet",
+      "say": "Everything is right, but the app is a minute old. invalid_grant, \"user hasn't approved this consumer\", until the lab clock passes 10 minutes."
+    },
+    {
+      "id": "S04",
+      "title": "Sign-in fails: JWT Bearer Flow not enabled",
+      "say": "The app has no JWT Bearer Flow or no certificate. Enable it and upload the .crt."
+    },
+    {
+      "id": "S05",
+      "title": "Sign-in fails: not pre-authorized",
+      "say": "Permitted Users was left at \"All users can self-authorize\", which does not work for JWT. invalid_grant."
+    },
+    {
+      "id": "S06",
+      "title": "Sign-in fails: refresh_token scope missing",
+      "say": "Without refresh_token, offline_access Salesforce rejects the flow."
+    },
+    {
+      "id": "S07",
+      "title": "Sign-in fails: certificate does not match the key",
+      "say": "The wizard was refreshed (a new key), so the certificate uploaded to the app no longer matches. Upload the new .crt."
+    },
+    {
+      "id": "S08",
+      "title": "Sign-in fails: certificate expired",
+      "say": "The wizard's certificate is valid two years. Move the lab clock past that and the same sign-in fails; regenerate and upload a new one."
+    },
+    {
+      "id": "S09",
+      "title": "Sign-in fails: the email was given, not the Username",
+      "say": "The Authorized User is the exact Username from Setup, Users; the email address does not work."
+    },
+    {
+      "id": "S10",
+      "title": "Sign-in fails: permission set not linked, then not assigned",
+      "say": "Both look the same from outside: invalid_grant. The permission set must be linked to the app and assigned to the signing-in user."
+    },
+    {
+      "id": "S11",
+      "title": "Link refused: its email matches 2 Privilege users",
+      "say": "Two Privilege records share an email, so neither links. Federation ID does not help; pick a user whose email is unique."
+    },
+    {
+      "id": "S12",
+      "title": "Link pitfalls: Federation ID, duplicate username, no seats",
+      "say": "A Federation ID does not rescue a mismatched email, a Salesforce username is unique across all orgs, and the observed org had 4 seats."
+    },
+    {
+      "id": "S13",
+      "title": "Grant refused: license rules and \"Already has\"",
+      "say": "Some permission sets need a permission set license, some belong to a different user license, and one the user already holds cannot be granted twice."
+    },
+    {
+      "id": "S14",
+      "title": "Grant, then expire by itself",
+      "say": "Nobody deletes the policy: the window closes and the reaper removes the assignment."
+    },
+    {
+      "id": "S15",
+      "title": "Revoke by deleting the policy",
+      "say": "There is no Revoke button: delete the policy. First \"Revoke pending, access still live\", then the next reconcile removes it (the lab's reading, so this card is lab-inferred)."
+    },
+    {
+      "id": "S16",
+      "title": "Drift: a permission set assigned by hand",
+      "say": "An admin assigns a permission set in Salesforce without a Privilege policy. Reconcile finds it; it can be revoked. Discovered and orphaned are the lab's names for it."
+    },
+    {
+      "id": "S17",
+      "title": "Downstream failure: Privilege can no longer sign in",
+      "say": "Two years on the certificate expires. A new grant fails with a structured 502, a grant whose window closed cannot be removed, and both are fixed by replacing the certificate."
+    }
+  ]
+}

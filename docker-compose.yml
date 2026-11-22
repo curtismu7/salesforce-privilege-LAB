@@ -1,0 +1,44 @@
+# OrbStack:  docker compose up --build -d   ->  http://127.0.0.1:7835      (Docker is OrbStack, never Docker Desktop)
+# The server binds 0.0.0.0 INSIDE the container (SFPRIV_BIND is the opt-in), but the port is published on loopback only.
+# Do not change the 127.0.0.1 below.
+#
+# MOCK (the default) needs nothing: no .env, no key, no secrets. REAL (owner-run, read-only) is configured only from this lab's OWN files beside
+# this one, see docs/real-mode.md:
+#   .env                (mode 600, git-ignored, never copied into the image)  SF_LOGIN_URL, SF_CLIENT_ID, SF_USERNAME, SF_PRIVATE_KEY_PATH=/run/secrets/<key file name>
+#   secrets/<key file>  (git-ignored; the directory is in the repo so the mount never creates anything on the host)  mounted read-only at /run/secrets
+# A missing .env or key file is not an error: Real then says what is missing and answers 409, and Mock keeps working. The image holds no secret.
+name: salesforce-privilege-lab
+
+services:
+  salesforce-privilege-lab:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOST_PORT:-7835}:7835"
+    # Settings and secrets reach the container only through this optional file (rule 19: the app's own .env beside this file).
+    env_file:
+      - path: ./.env
+        required: false
+    # Non-secret settings only. Every secret (the client id, the username, the key path) comes from env_file above, never from here.
+    environment:
+      SHELF_URL: ${SHELF_URL:-https://local.ping-devops.com:8443/demo-shelf}
+      PORT: "7835"
+      SFPRIV_BIND: 0.0.0.0
+      # Safe default: the page opens in Mock even when Real is configured. Put SFPRIV_DEFAULT_SOURCE=auto in .env to open in Real when it is configured.
+      SFPRIV_DEFAULT_SOURCE: ${SFPRIV_DEFAULT_SOURCE:-mock}
+      LAB_ALLOWED_HOSTS: ${LAB_ALLOWED_HOSTS:-local.ping-devops.com,salesforce-privilege-lab.local.ping-devops.com}
+    volumes:
+      - ./secrets:/run/secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: node
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:7835/api/health').then(r=>r.json()).then(j=>process.exit(j.schema==='demo-health/1'&&j.state==='ready'?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      start_period: 5s
+      start_interval: 2s
+      timeout: 5s
+      retries: 3

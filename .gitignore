@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.env
+secrets/*
+!secrets/.gitkeep
+*.pem
+.env.bak.*
+*.log
+.DS_Store
+.data/
+customer.config.json
