@@ -166,3 +166,22 @@ label:not(.inline):not(.check) > input:not([type="checkbox"]):not([type="radio"]
 .tbl td input { min-width: 7rem; }
 .shell-bar .mode-toggle { border-color: var(--on-box); }
 .shell-bar .mode-toggle button:not([aria-pressed="true"]) { background: var(--box-dark); color: var(--on-box); }
+
+/* Support P1: three panels together (the engineer's Salesforce view, Privilege, the old way), and the three beats. */
+.cols3 { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.cols3 > * { min-width: 0; }
+@media (max-width: 1000px) { .cols3 { grid-template-columns: 1fr; } }
+.beats { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 8px 0; padding: 0; }
+.beats li { display: inline-flex; align-items: center; padding: 4px 12px 4px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 13px; font-weight: 600; }
+.beats li[aria-current="step"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent-deep); }
+.denied { border: 1px dashed var(--border); border-radius: 8px; padding: 18px 12px; text-align: center; background: var(--surface-2); }
+.denied__title { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); }
+.panel--sf { border-top-color: var(--box-blue); }
+.receipts { list-style: none; padding-left: 0; }
+.receipts li { margin: 6px 0; }
+textarea { width: 100%; box-sizing: border-box; max-width: 100%; font: inherit; resize: vertical; }
+.cases { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.cases li { border: 1px solid var(--border); border-left: 4px solid var(--box-blue); border-radius: 8px; padding: 6px 10px; background: var(--surface); }
+.cases p { margin: 2px 0; }
+.cases__head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cases__title { font-weight: 600; overflow-wrap: anywhere; }

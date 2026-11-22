@@ -26,13 +26,13 @@ export default function RealPage({ lab }) {
     <div className="stack">
       <Card kicker="Real" title="What Real would do" testId="real-would">
         <ul className="plain" data-testid="real-list">{WOULD_DO.map((w) => <li key={w}>{w}</li>)}</ul>
-        <p className="muted">Real exists so the owner can compare the mock with one real org. What it reads is data; every behaviour in the mock is {visible(story.observedLabel)}.</p>
+        <p className="muted">Real exists so the owner can compare the mock with one real org. What it reads is your own org's data, nothing more.</p>
       </Card>
 
       <Card kicker="Source" title="Mock or Real" testId="real-source">
         <p data-testid="source-line">The page is in <Chip state={isReal ? "warn" : "info"}>{isReal ? "Real (read-only)" : "Mock"}</Chip> mode. Real is {available ? <Chip state="ok">configured</Chip> : <Chip state="none">not configured</Chip>}{available && info.realHost ? <> for <code>{visible(info.realHost)}</code></> : null}.</p>
         <p className="muted">Use the Mock / Real toggle in the header on any page to switch; it contacts nothing. Only the confirmed read below does.</p>
-        {!available && <p className="field-error" data-testid="real-howto" role="note">{visible((info.realReason || "Real is not configured").replace(/\.$/, ""))}. Mock keeps working. Copy .env.example to .env beside docker-compose.yml, fill the names in, then restart; the key file is never returned or logged.</p>}
+        {!available && <p className="field-error" data-testid="real-howto" role="note">{visible((info.realReason || "Real is not configured").replace(/\.$/, ""))}. Mock keeps working. To make Real ready, run <code>scripts/setup-real.sh</code> once in your own terminal: it makes the key and certificate, prints the External Client App steps, asks for the Consumer Key and Username with hidden input and writes the lab's <code>.env</code>. Then restart the lab. Nothing secret is returned or logged.</p>}
         {modeError && <p className="field-error" role="alert" data-testid="mode-error">{visible(modeError)}</p>}
       </Card>
 
@@ -57,7 +57,7 @@ export default function RealPage({ lab }) {
         {isReal && !real && !result && <p className="muted" data-testid="real-empty">Nothing has been read yet in this workspace.</p>}
         {real && (
           <div data-testid="real-result">
-            <p className="lesson" data-testid="real-read-note"><Chip state="ok">read-only</Chip> Read {t(real.fetchedAt)} UTC from <code>{visible(real.host)}</code>: {sets.length} permission sets, {users.length} users. {visible(real.label)}</p>
+            <p className="lesson" data-testid="real-read-note"><Chip state="ok">read-only</Chip> Read {t(real.fetchedAt)} UTC from <code>{visible(real.host)}</code>: {sets.length} permission sets, {users.length} users.</p>
             <div className="cols">
               <div className="scroll"><table className="tbl">
                 <caption>Permission sets ({sets.length})</caption>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { visible } from "../safeText";
-import { Card, Chip, ClaimTag, LabInvented, LastAction, Loading, ReadOnlyNotice } from "../components/Bits.jsx";
+import { Card, Chip, LastAction, Loading, ReadOnlyNotice } from "../components/Bits.jsx";
 
 function Seats({ licenses }) {
   const full = licenses.free <= 0;
@@ -30,8 +30,7 @@ export default function LinkPage({ lab }) {
   return (
     <div className="stack">
       <Card kicker="Link" title="Privilege matches a person on one thing: the exact email" testId="link-intro">
-        <p>Sync reads the org's users and links a Privilege user to a Salesforce user only when the two emails are identical. When two Privilege records share an email, neither links. A Federation ID on the Salesforce user does not rescue a mismatch. Privilege never creates Salesforce users: someone without one waits until an admin adds them. <ClaimTag /></p>
-        <LabInvented ids={["case-sensitive"]} items={lab.story?.labInvented} testId="link-labinv" />
+        <p>Sync reads the org's users and links a Privilege user to a Salesforce user only when the two emails are identical. When two Privilege records share an email, neither links. A Federation ID on the Salesforce user does not rescue a mismatch. Privilege never creates Salesforce users: someone without one waits until an admin adds them.</p>
         <div className="seg">
           <button type="button" className="primary" disabled={busy || !app} onClick={() => act("app.sync")} data-testid="sync">Sync</button>
           {!app && <span className="muted" data-testid="no-app">Create the application first: <a href="#connect">Connect</a> (sign in, then Create Application).</span>}
@@ -41,7 +40,7 @@ export default function LinkPage({ lab }) {
 
       <div className="cols">
         <Card kicker="PingOne Privilege" title="Privilege users" testId="privilege-users">
-          <p className="muted">The directory is read-only in the observed environment. Add Users puts a person on this application; the row waits until Sync finds their email in Salesforce.</p>
+          <p className="muted">The directory was read-only in the one real run. Add Users puts a person on this application; the row waits until Sync finds their email in Salesforce.</p>
           <div className="scroll"><table className="tbl tbl--wide">
             <caption>Privilege users ({pv.directory.length})</caption>
             <thead><tr><th>Name</th><th>Email</th><th>On the application</th><th>Action</th></tr></thead>
@@ -88,7 +87,7 @@ export default function LinkPage({ lab }) {
               </tr>
             ))}</tbody>
           </table></div>
-          <p className="muted" data-testid="fed-note">A Federation ID is shown but it did not rescue an email mismatch in the one test run: a waiting row stays waiting, and the row's reason says so. (Privilege's internal rule was not observed; the lab matches on the exact email only.)</p>
+          <p className="muted" data-testid="fed-note">A Federation ID is shown but it did not rescue an email mismatch in the one test run: a waiting row stays waiting, and the row's reason says so.</p>
 
           <h3 className="panel__sub">New Salesforce user</h3>
           <div className="filters">
@@ -100,7 +99,7 @@ export default function LinkPage({ lab }) {
         </Card>
       </div>
 
-      <LastAction last={last} labInvented={lab.story?.labInvented} />
+      <LastAction last={last} />
     </div>
   );
 }

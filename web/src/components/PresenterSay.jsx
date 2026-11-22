@@ -1,11 +1,11 @@
-import LabInvented from "./LabInvented.jsx";
+import { visible } from "../safeText";
 
-// The presenter's lines for a page, then what on that page is lab-invented (never to be read out as observed).
-export default function PresenterSay({ say, inventedIds, items }) {
+// The presenter's lines for a page: the talk-track items for it, as the server worded them.
+export default function PresenterSay({ say, heading }) {
   return (
-    <aside className="presenter-say" data-testid="presenter-say" aria-label="Talk track" hidden={say.length === 0 && inventedIds.length === 0}>
-      {say.map((t) => <p key={t.id}><strong>{t.title}.</strong> {t.say}</p>)}
-      <LabInvented ids={inventedIds} items={items} testId="presenter-labinv" />
+    <aside className="presenter-say" data-testid="presenter-say" aria-label="Talk track" hidden={say.length === 0}>
+      {heading && <p className="kicker" data-testid="presenter-beat">{heading}</p>}
+      {say.map((t) => <p key={t.id}><strong>{visible(t.title)}.</strong> {visible(t.say)}</p>)}
     </aside>
   );
 }

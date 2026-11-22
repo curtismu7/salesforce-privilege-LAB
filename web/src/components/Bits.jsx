@@ -1,33 +1,11 @@
 import { useState } from "react";
 import { visible } from "../safeText";
 import { t } from "../fmt";
-import Basis, { BASIS_STATE } from "./Basis.jsx";
-import LabInvented from "./LabInvented.jsx";
-export { Basis, BASIS_STATE, LabInvented };
 // Every JSON pane is the shared JsonPane (Form | JSON, full view, rule 24); it applies visible() to everything it shows.
 import Json from "./JsonPane.jsx";
 export { Json };
 
-export const OBSERVED = "observed on one org and one Privilege build, UNVERIFIED as a product claim";
 export const HOT = ["decision", "outcome", "status", "error", "message", "ok", "expect", "met", "code"];
-
-// Every product claim carries this tag, on every page and in presenter mode too.
-export function ClaimTag({ label }) {
-  return <span className="tag" data-state="warn" data-testid="claim-tag">{label || OBSERVED}</span>;
-}
-
-// Which lab-invented behaviours a finished action showed, read from what it did (not from its name alone).
-export function labInventedIds(op, res) {
-  if (!res || !res.ok) return [];
-  const r = res.result || {};
-  const ids = new Set();
-  if (["clock.advance", "reaper.run", "app.reconcile"].includes(op) && ((r.reaped && r.reaped.length) || (op === "reaper.run"))) ids.add("reaper");
-  if (op === "policy.delete") ids.add("reconcile-clears");
-  if (["app.reconcile", "app.sync"].includes(op) && r.removed && r.removed.length) ids.add("reconcile-clears");
-  if (op === "drift.revoke") ids.add("drift-names");
-  if (["app.reconcile", "app.sync"].includes(op) && r.reconcile && r.reconcile.findings && r.reconcile.findings.length) ids.add("drift-names");
-  return [...ids];
-}
 
 // A status with a word and a state, so meaning never rests on colour alone (patterns section 7).
 export function Chip({ state = "none", children, testId, wrap }) {
@@ -65,7 +43,7 @@ export function Hops({ hops, traceId }) {
 export const serverProblem = (r) => !r.ok && !r.outcome && (r.status === 0 || r.status >= 500 || ["bad_response", "unreachable", "internal_error"].includes(r.code));
 
 // What the last action did: ok or refused, the sentence, the cause and the fix when Salesforce refused, and the raw request and response.
-export function LastAction({ last, quietFor, labInvented }) {
+export function LastAction({ last, quietFor }) {
   if (!last) return null;
   const { result, op, params, response } = last;
   const quiet = quietFor === op; // the page already shows this action's refusal and outcome in its own place
@@ -75,8 +53,7 @@ export function LastAction({ last, quietFor, labInvented }) {
       <h3 className="card__title"><code>{op}</code> {result.ok ? <Chip state="ok">done</Chip> : serverProblem(result) ? <Chip state="bad">server problem (HTTP {result.status || "no answer"})</Chip> : <Chip state="bad">refused: {result.code}</Chip>}</h3>
       {!result.ok && !quiet && <p className="field-error" role="alert" data-testid="last-refusal">{visible(result.message)}</p>}
       {!result.ok && !quiet && result.outcome && <Outcome outcome={result.outcome} />}
-      {result.ok && result.result?.note && <p className="lesson" data-testid="last-note">{visible(result.result.note)}{labInventedIds(op, result).includes("reconcile-clears") && <> <Basis basis="lab-invented" label="which action clears it is the lab's reading" testId="note-basis" /></>}</p>}
-      <LabInvented ids={labInventedIds(op, result)} items={labInvented} testId="last-labinv" />
+      {result.ok && result.result?.note && <p className="lesson" data-testid="last-note">{visible(result.result.note)}</p>}
       <Json value={{ op, params }} label="request to /api/actions" hot={HOT} />
       <Json value={result.ok ? { ok: true, result: result.result } : { ok: false, error: result.code, message: result.message }} label="response" hot={HOT} />
       <Hops hops={response?.hops} traceId={response?.traceId} />
@@ -90,18 +67,15 @@ export function Outcome({ outcome }) {
   const said = outcome.sfError ? `${outcome.sfError}${outcome.sfDescription ? `, "${outcome.sfDescription}"` : ""}` : null;
   return (
     <dl className="kv" data-testid="outcome">
-      {!ok && <><dt>Salesforce said</dt>
-      <dd data-testid="outcome-said">{said ? <code>{visible(said)}</code> : <span className="muted">The wording of this failure was not captured, so the lab shows the cause and the fix only.</span>}</dd></>}
+      {!ok && said && <><dt>Salesforce said</dt><dd data-testid="outcome-said"><code>{visible(said)}</code></dd></>}
       <dt>{ok ? "What it means" : "Cause"}</dt><dd data-testid="outcome-cause">{visible(outcome.cause)}</dd>
       <dt>{ok ? "Next" : "Fix"}</dt><dd data-testid="outcome-fix">{visible(outcome.fix)}</dd>
-      <dt>Basis</dt>
-      <dd data-testid="outcome-basis"><Basis basis={outcome.basis} label={outcome.label} /> <Chip state="none">{visible(outcome.wording)}</Chip> <span className="muted">{visible(outcome.label || OBSERVED)}</span></dd>
     </dl>
   );
 }
 
 // The lab clock: the page's only way to move time. It only moves forward, so there is no control to go back (Reset starts over).
-export const CLOCK_STEPS = [["+1 min", 1], ["+10 min", 10], ["+1 hour", 60], ["+1 day", 1440], ["+731 days", 731 * 1440]];
+export const CLOCK_STEPS = [["+1 min", 1], ["+10 min", 10], ["+1 hour", 60], ["+1 day", 1440]];
 export function LabClock({ clock, act, busy, disabled }) {
   const [custom, setCustom] = useState("");
   const n = Number(custom);
@@ -110,7 +84,7 @@ export function LabClock({ clock, act, busy, disabled }) {
     <section className="card" data-testid="lab-clock" aria-label="Lab clock">
       <p className="kicker">Lab clock</p>
       <h2 className="card__title"><span data-testid="clock-now">{t(clock?.now)} UTC</span> <span className="muted">(minute {clock?.nowMin ?? 0})</span></h2>
-      <p className="muted">The clock only moves forward: there is no rewind, Reset starts over. A new Salesforce app needs 10 minutes, a grant ends when its window closes, a certificate lasts two years.</p>
+      <p className="muted">The clock only moves forward: there is no rewind, Reset starts over. A new Salesforce app can take up to 10 minutes to activate; moving the clock does not end a grant, deleting the policy does.</p>
       <div className="seg" role="group" aria-label="Advance the lab clock">
         {CLOCK_STEPS.map(([label, m]) => <button key={label} type="button" disabled={disabled || busy} onClick={() => act("clock.advance", { minutes: m })} data-testid={`advance-${m}`}>{label}</button>)}
       </div>

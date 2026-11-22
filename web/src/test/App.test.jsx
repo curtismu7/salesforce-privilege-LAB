@@ -4,7 +4,8 @@ import { REAL_HOST, fakeReal, jsonResponse } from "./harness.js";
 import { nav, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
-const PAGES = ["Story", "Connect", "Link", "Grant and revoke", "Diagram", "Real"];
+const PAGES = ["Support P1", "Scenarios", "Connect", "Link", "Grant and revoke", "Diagram", "Real"];
+const BANNER = "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.";
 
 describe("shell: banner, header, presenter, talk track", () => {
   it("shows the simulation banner FIRST in the page on every page", async () => {
@@ -13,8 +14,7 @@ describe("shell: banner, header, presenter, talk track", () => {
       await nav(user, p);
       const main = document.querySelector("main");
       expect(main.firstElementChild, p).toBe(screen.getByTestId("banner"));
-      expect(text("banner"), p).toMatch(/SIMULATED, MOCK mode/);
-      expect(text("banner"), p).toMatch(/UNVERIFIED as a product claim/);
+      expect(text("banner"), p).toBe(BANNER);
     }
   });
 
@@ -33,21 +33,28 @@ describe("shell: banner, header, presenter, talk track", () => {
     expect(screen.getByTestId("banner")).toBeInTheDocument();
   });
 
-  it("presenter mode on the Grant page lists what is lab-invented next to the talk track", async () => {
-    const user = await h.mount({ page: "grant" });
+  it("presenter mode on the Support P1 page says the line for the beat the world is in, and moves on with the story", async () => {
+    const user = await h.mount();
+    await waitFor(() => expect(screen.getByTestId("beat-1")).toHaveAttribute("aria-current", "step"));
     await user.click(screen.getByTestId("presenter"));
     const box = await screen.findByTestId("presenter-say");
-    expect(within(box).getByTestId("presenter-labinv")).toHaveTextContent(/Automatic expiry by a reaper/);
-    expect(box).toHaveTextContent(/lab-invented/);
+    expect(within(box).getByTestId("presenter-beat")).toHaveTextContent("Beat 1 of 3: No access");
+    expect(box).toHaveTextContent(/You don't have access to Cases/);
+    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
+    await user.type(screen.getByTestId("support-note"), "P1 note");
+    await user.click(screen.getByTestId("support-request"));
+    await waitFor(() => expect(screen.getByTestId("presenter-beat")).toHaveTextContent("Beat 2 of 3: Access for the job"));
+    expect(screen.getByTestId("presenter-say")).toHaveTextContent(/Case Read Access/);
   });
 
   it("opens the shared talk-track dialog with every step of the script", async () => {
     const user = await h.mount();
     await user.click(screen.getByTestId("talk-track-toggle"));
     const dlg = await screen.findByTestId("talk-track-dialog");
-    expect(within(dlg).getAllByRole("heading", { level: 2 }).length).toBeGreaterThanOrEqual(7);
-    expect(dlg).toHaveTextContent(/Start with the honest part/);
-    expect(dlg).toHaveTextContent(/Drift/);
+    expect(within(dlg).getAllByRole("heading", { level: 2 }).length).toBeGreaterThanOrEqual(6);
+    expect(dlg).toHaveTextContent(/Beat 1: no access/);
+    expect(dlg).toHaveTextContent(/Beat 3: no access again, and a receipt/);
+    expect(dlg).not.toHaveTextContent(/Drift|reaper|lab-invented/);
   });
 
   it("has a header with the shared TopMenu: mode, vertical, theme, text size, Reset", async () => {
@@ -132,7 +139,7 @@ describe("rule 19: the Mock / Real toggle", () => {
     await user.click(screen.getByTestId("mode-mock"));
     await waitFor(() => expect(pressed("mode-mock")).toBe("true"));
     expect(pressed("mode-real")).toBe("false");
-    expect(text("banner")).toMatch(/SIMULATED, MOCK mode/);
+    expect(text("banner")).toBe(BANNER);
     let after = h.lab.calls.slice(before);
     expect(after.find((c) => c.path === "/api/mode" && c.method === "POST").body).toEqual({ source: "mock" });
     for (const p of ["/api/info", "/api/story", "/api/state"]) expect(after.some((c) => c.path === p), p).toBe(true);
@@ -154,7 +161,9 @@ describe("rule 19: the Mock / Real toggle", () => {
       await nav(user, p);
       expect(screen.getByTestId("real-readonly"), p).toHaveTextContent(/Real only reads/);
     }
-    await nav(user, "Story");
+    await nav(user, "Support P1");
+    expect(screen.getByTestId("real-readonly")).toHaveTextContent(/Real only reads/);
+    await nav(user, "Scenarios");
     expect(screen.getByTestId("story-real")).toBeInTheDocument();
     await nav(user, "Real");
     expect(screen.getByTestId("real-read-btn")).toBeDisabled(); // nothing typed
@@ -195,7 +204,7 @@ describe("failure states", () => {
     const user = await h.mount({ loaded: false, overrides: { "/api/state": () => (broken ? jsonResponse(500, { error: "internal_error", message: "The lab hit an unexpected error; nothing was changed" }) : null) } });
     const box = await screen.findByTestId("load-error");
     expect(box).toHaveTextContent(/Could not load the lab \(The lab hit an unexpected error; nothing was changed\)/);
-    expect(screen.getByTestId("banner")).toHaveTextContent(/SIMULATED, MOCK or REAL/); // never blank, never claiming a mode before it is known
+    expect(screen.getByTestId("banner")).toHaveTextContent(BANNER); // never blank before the mode is known
     broken = false;
     await user.click(screen.getByTestId("retry"));
     await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mock"));
@@ -213,14 +222,14 @@ describe("failure states", () => {
   });
 });
 
-describe("fix pass: honest labels and a toggle that is never silent", () => {
-  it("a Real read is labelled as live data from your org, not as an observed product claim", async () => {
+describe("fix pass: no label chips anywhere and a toggle that is never silent", () => {
+  it("a Real read says it is read-only and carries no label chip", async () => {
     const user = await h.mount({ real: fakeReal(), page: "real" });
     await user.type(screen.getByTestId("confirm-host"), REAL_HOST);
     await user.click(screen.getByTestId("real-read-btn"));
     const note = await screen.findByTestId("real-read-note");
-    expect(note).toHaveTextContent("read from your org, read-only");
-    expect(note).not.toHaveTextContent(/observed on one org|UNVERIFIED/);
+    expect(note).toHaveTextContent(/read-only/);
+    expect(note).not.toHaveTextContent(/observed on one org|UNVERIFIED|lab-invented|lab-inferred/);
   });
 
   it("pressing a mode button with the lab server down says so (modeError), never silently", async () => {

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import PatternDiagram from "../components/PatternDiagram.jsx";
-import { Card, LabInvented, Loading } from "../components/Bits.jsx";
+import { Card, Loading } from "../components/Bits.jsx";
 import { getDiagram } from "../api";
 import { visible } from "../safeText";
 
 // Diagrams are diagram-studio/1 data loaded BY NAME from the server (rule 17); no node or edge is drawn from a list in this file.
-export const DIAGRAMS = [["connect-and-link", "Connect and link"], ["grant-expire-revoke", "Grant, expire, revoke"]];
+export const DIAGRAMS = [["connect-and-link", "Connect and link"], ["grant-and-revoke", "Grant and revoke"]];
 
 export default function DiagramPage({ lab }) {
   const [name, setName] = useState(() => { const n = window.location.hash.replace("#", "").split("/")[1]; return DIAGRAMS.some(([id]) => id === n) ? n : DIAGRAMS[0][0]; }); // "#diagram/<name>" links straight to one diagram
@@ -27,7 +27,6 @@ export default function DiagramPage({ lab }) {
       <div className="seg" role="group" aria-label="Diagram">
         {DIAGRAMS.map(([id, label]) => <button key={id} type="button" aria-pressed={name === id} onClick={() => setName(id)} data-testid={`dg-${id}`}>{label}</button>)}
       </div>
-      {name === "grant-expire-revoke" && <LabInvented ids={["reaper", "reconcile-clears"]} items={lab.story?.labInvented} testId="diagram-labinv" />}
       {error && (
         <Card tone="warn" kicker="Diagram" title="This diagram could not be loaded" testId="diagram-error">
           <p role="alert" data-testid="diagram-error-text">{visible(error)}</p>
