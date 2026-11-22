@@ -6,9 +6,9 @@ Spec: `docs/specs/2026-11-22-support-p1-story.md`. Branch `story/support-p1`. Mo
 
 | Suite | Result |
 | --- | --- |
-| server (`node --test test/*.test.js`) | 168 tests, 168 pass, 0 fail |
+| server (`node --test test/*.test.js`) | 171 tests, 171 pass, 0 fail |
 | web (vitest, real Express app in process) | 13 files, 171 tests, 171 pass |
-| scripts (`node --test scripts/*.test.mjs`, includes `setup-real.test.mjs`) | 48 tests, 48 pass |
+| scripts (`node --test scripts/*.test.mjs`, includes `setup-real.test.mjs`) | 50 tests, 50 pass |
 | `npm run build`, `node scripts/doctor.mjs` | exit 0, exit 0 (19 PASS, 0 FAIL); `validate-content-pack.mjs`: valid |
 
 Other gates: `conformance.mjs . --new --tier=Demo`: 0 failed, 2 advisory warnings (rule 18 k8s, deferred by the owner). `check-ui-standard.sh` (this Mac, canonical present): OK, pin OK. `check-ui-patterns.mjs --app salesforce-privilege-LAB`: 7 pages, 7 clean, 0 with drift (advisory WARNs T1 line 81 and P11 in the vendored `ReleaseNotes.jsx` pre-date this work). `check-no-ai-attribution.sh`: 0 and 0. gitleaks: clean on every commit.
@@ -43,4 +43,4 @@ Empty or denied (`cases-denied`, no leak: `support.test.js` and `support.test.js
 - S3, S4: wording reworded to the guide's; Connect: no activation chip, only the two scopes the guide names, no `org_unreachable`, the verification-code wording from the guide.
 - S5, S6, S7: `setup-real.sh` checks all inputs before touching a file, builds new files under temporary names, backs up the key, certificate and `.env` under `--force` (unique names, mode 600) and restores them on failure, runs under `LC_ALL=C`, validates ASCII-only values and a host-name-only https origin, creates `secrets/` at 700, refuses symlinks, makes a relative `--dir` absolute; 12 script tests added or rewritten.
 - S8: tests for M20 (waiting row is `user_not_linked`), W01, M16 (`reset` clears the requests). N1 `endAt` ISO 8601 with Z or offset on a whole minute; N2 "License Salesforce ≠ Cloud Integration User" in every vertical; N3 text; N4 the Support intro only on its page plus the value line; N7 dead path removed; N8 guide and skill wording (PDF not regenerated).
-- Open point for the owner: while the policy is Revoke pending the reconciliation reads "0 confirmed" (the guide records "1 confirmed" only while granted); the lab does not claim more.
+- Last pass: while a removal is queued the reconciliation keeps the last refresh ("1 confirmed" at its time); only a grant or Refresh receipts recomputes it (engine, GrantPage, SupportPage, tests; browser log `sfstory3/proof-log.txt`: unchanged while pending, "0 confirmed" after Refresh receipts). Beat 2 narration says to press Refresh receipts while the policy reads "Revoke pending"; Beat 3 follows the refresh. The diagram says the pending state stays until a refresh shows the removal. `endAt` is parsed strictly (calendar-invalid dates, T24:00, :60 and offsets over 23:59 are refused). The guide's "Not tested" list names "the end time ending access by itself". `setup-real.sh` tightens an existing `secrets/` to 700; new tests pin the scope list, the locale (`LC_ALL=en_US.UTF-8`) and the restore trap (forced failure after the backup and after the key is placed).
