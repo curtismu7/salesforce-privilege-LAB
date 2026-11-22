@@ -65,33 +65,103 @@ test('it refuses to overwrite an existing key, certificate or .env without --for
   for (const lone of ['.env', 'secrets/sf-private-key.pem']) { const d = tmp(); fs.mkdirSync(path.join(d, 'secrets')); fs.writeFileSync(path.join(d, lone), 'x'); assert.equal(run(d, [], fed('https://a.example')).status, 3, lone); assert.equal(fs.readFileSync(path.join(d, lone), 'utf8'), 'x'); }
 });
 
-test('--force replaces them, keeps the old .env as a backup (mode 600) and makes a new key', () => {
+const FILES = ['secrets/sf-private-key.pem', 'secrets/sf-lab-certificate.crt', '.env'];
+const snapshot = (dir) => FILES.map((f) => fs.readFileSync(path.join(dir, f), 'utf8'));
+const baks = (dir) => [...fs.readdirSync(dir).filter((f) => f.startsWith('.env.bak.')).map((f) => path.join(dir, f)), ...fs.readdirSync(path.join(dir, 'secrets')).filter((f) => f.includes('.bak.')).map((f) => path.join(dir, 'secrets', f))];
+
+test('--force replaces them, backs up the key, the certificate and the .env (the key and .env backups at mode 600), and makes a new key', () => {
   const dir = tmp();
   run(dir, [], fed('https://stub-org.develop.my.salesforce.example'));
-  const oldKey = fs.readFileSync(path.join(dir, 'secrets/sf-private-key.pem'), 'utf8');
+  const old = snapshot(dir);
   const r = run(dir, ['--force'], fed('https://second.develop.my.salesforce.example'));
   assert.equal(r.status, 0, r.stderr);
-  assert.notEqual(fs.readFileSync(path.join(dir, 'secrets/sf-private-key.pem'), 'utf8'), oldKey);
+  assert.notEqual(snapshot(dir)[0], old[0], 'a new key');
   assert.equal(parseEnv(fs.readFileSync(path.join(dir, '.env'), 'utf8')).SF_LOGIN_URL, 'https://second.develop.my.salesforce.example');
-  const bak = fs.readdirSync(dir).filter((f) => f.startsWith('.env.bak.')); assert.equal(bak.length, 1); assert.equal(mode(path.join(dir, bak[0])), '600');
+  const b = baks(dir); assert.equal(b.length, 3, b.join(','));
+  const bk = b.find((f) => f.includes('sf-private-key.pem.bak.')); const be = b.find((f) => f.includes('.env.bak.'));
+  assert.equal(mode(bk), '600'); assert.equal(mode(be), '600');
+  assert.equal(fs.readFileSync(bk, 'utf8'), old[0], 'the old key is what was backed up'); assert.equal(fs.readFileSync(be, 'utf8'), old[2]);
+  assert.match(r.stdout, /Backed up \(mode 600, kept\)/);
+  assert.equal(mode(path.join(dir, 'secrets/sf-private-key.pem')), '600'); assert.equal(mode(path.join(dir, '.env')), '600'); assert.equal(mode(path.join(dir, 'secrets')), '700');
   assert.ok(!(r.stdout + r.stderr).includes('stub-org'));
+  const again = run(dir, ['--force'], fed('https://third.develop.my.salesforce.example')); assert.equal(again.status, 0); assert.equal(baks(dir).length, 6, 'backup names never collide');
 });
 
-test('bad values are refused without echoing them and write no .env: a path in the URL, plain http elsewhere, odd characters, empty values', () => {
-  const cases = [
-    [{ ...fed('https://stub-org.example/path') }, /origin only/],
-    [{ ...fed('http://org.example') }, /must start with https/],
-    [{ ...fed('https://user:pw@stub-org.example') }, /origin only/],
-    [{ ...fed('https://stub-org.example'), SFPRIV_SETUP_CONSUMER_KEY: 'has space' }, /Consumer Key has characters/],
-    [{ ...fed('https://stub-org.example'), SFPRIV_SETUP_USERNAME: 'a"b@c.example' }, /Username has characters/],
-    [{ ...fed('https://stub-org.example'), SFPRIV_SETUP_CONSUMER_KEY: '' }, /Consumer Key is empty/],
-  ];
-  for (const [env, msg] of cases) {
-    const dir = tmp(); const r = run(dir, [], env);
-    assert.equal(r.status, 4, r.stderr); assert.match(r.stderr, msg);
-    assert.ok(!fs.existsSync(path.join(dir, '.env')), '.env is not written');
-    assert.ok(!(r.stdout + r.stderr).includes('pw@') && !(r.stdout + r.stderr).includes('has space'));
+test('a bad value stops BEFORE anything is touched: with --force a bad Consumer Key leaves the old .env, key and certificate as they were and makes no backup', () => {
+  const dir = tmp();
+  run(dir, [], fed('https://stub-org.develop.my.salesforce.example'));
+  const old = snapshot(dir);
+  for (const over of [{ SFPRIV_SETUP_CONSUMER_KEY: 'has space' }, { SFPRIV_SETUP_USERNAME: '' }, { SFPRIV_SETUP_ORG_URL: 'http://org.example' }]) {
+    const r = run(dir, ['--force'], { ...fed('https://other.develop.my.salesforce.example'), ...over });
+    assert.equal(r.status, 4, r.stderr); assert.match(r.stderr, /Nothing was changed/);
+    assert.deepEqual(snapshot(dir), old); assert.equal(baks(dir).length, 0); assert.equal(mode(path.join(dir, '.env')), '600');
+    assert.ok(!(r.stdout + r.stderr).includes('has space'));
   }
+  assert.ok(fs.readdirSync(path.join(dir, 'secrets')).every((f) => !f.includes('.new.')), 'no temporary file is left');
+});
+
+test('a failure while building the new files (here: secrets/ not writable) leaves the old setup untouched', { skip: process.getuid?.() === 0 }, () => {
+  const dir = tmp();
+  run(dir, [], fed('https://stub-org.develop.my.salesforce.example'));
+  const old = snapshot(dir);
+  fs.chmodSync(path.join(dir, 'secrets'), 0o500);
+  try {
+    const r = run(dir, ['--force'], fed('https://other.develop.my.salesforce.example'));
+    assert.notEqual(r.status, 0);
+    assert.deepEqual(snapshot(dir), old); assert.equal(baks(dir).length, 0);
+    assert.ok(!(r.stdout + r.stderr).includes('other.develop'));
+  } finally { fs.chmodSync(path.join(dir, 'secrets'), 0o700); }
+});
+
+test('bad values are refused without echoing them, before any file or folder is made: $, ;, spaces, non-ASCII, a path, a port, user info, plain http, an empty label', () => {
+  const ok = 'https://stub-org.develop.my.salesforce.example';
+  const cases = [
+    [{ SFPRIV_SETUP_ORG_URL: 'https://$HOME.example' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://x.example;id' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://x .example' }, /org URL/],
+    [{ SFPRIV_SETUP_ORG_URL: 'https://exämple.example' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://stub-org.example/path' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://stub-org.example/' }, /org URL/],
+    [{ SFPRIV_SETUP_ORG_URL: 'https://stub-org.example:8443' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://user:pw@stub-org.example' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://stub-org.example?x=1' }, /org URL/],
+    [{ SFPRIV_SETUP_ORG_URL: 'http://org.example' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://x..example' }, /org URL|empty host label/], [{ SFPRIV_SETUP_ORG_URL: 'https://.example' }, /org URL/],
+    [{ SFPRIV_SETUP_ORG_URL: 'https://stub-org.example\nhttps://evil.example' }, /org URL/], [{ SFPRIV_SETUP_ORG_URL: 'https://[::1]' }, /org URL/],
+    [{ SFPRIV_SETUP_CONSUMER_KEY: '3MVG9é' }, /Consumer Key has characters/], [{ SFPRIV_SETUP_CONSUMER_KEY: 'has space' }, /Consumer Key has characters/], [{ SFPRIV_SETUP_CONSUMER_KEY: 'a=b' }, /Consumer Key has characters/],
+    [{ SFPRIV_SETUP_CONSUMER_KEY: 'k\nSF_X=1' }, /Consumer Key has characters/], [{ SFPRIV_SETUP_CONSUMER_KEY: 'k'.repeat(257) }, /too long/], [{ SFPRIV_SETUP_CONSUMER_KEY: '' }, /Consumer Key is empty/],
+    [{ SFPRIV_SETUP_USERNAME: 'üser@x.example' }, /Username has characters/], [{ SFPRIV_SETUP_USERNAME: 'a"b@c.example' }, /Username has characters/], [{ SFPRIV_SETUP_USERNAME: 'a b@c.example' }, /Username has characters/], [{ SFPRIV_SETUP_USERNAME: '' }, /Username is empty/],
+  ];
+  for (const [over, msg] of cases) {
+    const dir = tmp(); const r = run(dir, [], { ...fed(ok), ...over });
+    const label = JSON.stringify(over).slice(0, 70);
+    assert.equal(r.status, 4, `${label}: ${r.stderr}`); assert.match(r.stderr, msg, label);
+    assert.deepEqual(fs.readdirSync(dir), [], `${label}: nothing is written, not even a folder`);
+    const out = r.stdout + r.stderr;
+    for (const v of Object.values(over)) if (v.length > 3) assert.ok(!out.includes(v), `${label}: the value is never echoed`);
+  }
+});
+
+test('it refuses to write through a symbolic link at .env, the key, the certificate or secrets/, even with --force, and touches the target of none', () => {
+  for (const [link, fileKind] of [['.env', 'file'], ['secrets/sf-private-key.pem', 'file'], ['secrets/sf-lab-certificate.crt', 'file'], ['secrets', 'dir']]) {
+    const dir = tmp(); const away = tmp(); const target = path.join(away, 'target');
+    if (fileKind === 'dir') fs.mkdirSync(target); else { fs.mkdirSync(path.join(dir, 'secrets')); fs.writeFileSync(target, 'precious'); }
+    fs.symlinkSync(target, path.join(dir, link));
+    for (const args of [[], ['--force']]) {
+      const r = run(dir, args, fed('https://stub-org.develop.my.salesforce.example'));
+      assert.equal(r.status, 3, `${link} ${args}: ${r.stderr}`); assert.match(r.stderr, /symbolic link/);
+    }
+    if (fileKind === 'file') assert.equal(fs.readFileSync(target, 'utf8'), 'precious'); else assert.deepEqual(fs.readdirSync(target), []);
+  }
+});
+
+test('a relative --dir is made absolute before the key path is written, and secrets/ is created with mode 700', () => {
+  const parent = tmp();
+  const r = spawnSync('bash', [SCRIPT, '--dir', 'rel/lab', '--host-path'], { cwd: parent, encoding: 'utf8', env: { ...process.env, SFPRIV_SETUP_NONINTERACTIVE: '1', ...fed('https://stub-org.develop.my.salesforce.example') } });
+  assert.equal(r.status, 0, r.stderr);
+  const dir = path.join(parent, 'rel/lab');
+  const keyPath = parseEnv(fs.readFileSync(path.join(dir, '.env'), 'utf8')).SF_PRIVATE_KEY_PATH;
+  assert.ok(path.isAbsolute(keyPath)); assert.equal(fs.realpathSync(keyPath), fs.realpathSync(path.join(dir, 'secrets/sf-private-key.pem')));
+  assert.equal(mode(path.join(dir, 'secrets')), '700');
+});
+
+test('the script header and the steps say the lab uses its own key, and never the claim that the wizard\'s key cannot be exported', () => {
+  const text = fs.readFileSync(SCRIPT, 'utf8') + fs.readFileSync(new URL('../docs/real-mode.md', import.meta.url), 'utf8');
+  assert.match(text, /this lab uses its own key, separate from the one the Privilege wizard generated/);
+  assert.ok(!/not exportable/i.test(text));
 });
 
 test('with the script\'s output and the loopback stub org: /api/info says realAvailable:true, the toggle goes to Real and back, one confirmed read signs in, and unconfigured stays 409', async () => {

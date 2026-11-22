@@ -33,7 +33,7 @@ try {
     const p1 = await run('support-p1');
     const dup = await run('duplicate-email');
     const final = await act('clock.advance', { minutes: 1 });
-    const ok = happy.ok && fail.ok && p1.ok && dup.ok && final.ok === true && happy.state.privilege.policies[0].status === 'ended' && p1.state.privilege.receipts[0].status === 'Revoked' && p1.state.support.canSeeCases === false && p1.state.support.cases === null
+    const ok = happy.ok && fail.ok && p1.ok && dup.ok && final.ok === true && happy.state.privilege.policies[0].status === 'ended' && p1.state.privilege.receipts[0].status === 'Expired / Revoked' && p1.state.support.canSeeCases === false && p1.state.support.cases === null
       && fail.steps.find((x) => x.expect === 'not_propagated').result.outcome.id === 'not_propagated' && /matches 2 Privilege users/.test(JSON.stringify(dup.steps[2].result));
     report(ok ? 'pass' : 'fail', 'lab-cycle', ok ? 'connect, link, grant, revoke; a sign-in failure with its fix; the Support P1 story ends with Cases denied again; the duplicate-email refusal: all ran through the HTTP API' : 'the scripted cycle through the HTTP API did not complete');
   } finally { health.stop(); await new Promise((res) => server.close(res)); }
