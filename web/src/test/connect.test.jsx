@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OUTCOMES } from "../../../server/src/data.js";
 import { SCENARIOS, runScenario } from "../../../server/src/scenarios.js";
 import { VERTICALS } from "../../../server/src/cast.js";
-import { nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
+import { LABEL_ID, LABEL_TEXT, nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
 const C = VERTICALS.finance;
@@ -12,11 +12,10 @@ const refusals = SCENARIOS.flatMap((sc) => {
   const run = runScenario(C, sc);
   return run.steps.flatMap((st, i) => (st.op === "wizard.signIn" && st.expect !== "ok" ? [{ id: sc.id, i, expect: st.expect, params: st.params }] : []));
 });
-const upToWrongUsername = refusals.find((r) => r.id === "fail-wrong-username").i;
 
 describe("Connect page: the wizard rehearsal", () => {
   it("covers every sign-in failure the scripts reach, each with the mock Salesforce outcome, the cause and the exact fix", async () => {
-    expect(refusals.map((r) => r.expect).sort()).toEqual(["certificate_expired", "invalid_client_id", "jwt_not_enabled", "missing_refresh_scope", "not_preauthorized", "not_propagated", "permset_not_assigned", "permset_not_linked", "signature_mismatch", "wrong_username"].sort());
+    expect(refusals.map((r) => r.expect).sort()).toEqual(["invalid_client_id", "missing_refresh_scope", "not_preauthorized", "not_propagated", "permset_not_assigned", "permset_not_linked", "signature_mismatch"].sort());
   });
 
   for (const r of refusals) {
@@ -32,38 +31,32 @@ describe("Connect page: the wizard rehearsal", () => {
       expect(within(box).getByTestId("outcome-cause")).toHaveTextContent(o.cause);
       expect(within(box).getByTestId("outcome-fix")).toHaveTextContent(o.fix);
       if (o.sfError) expect(within(box).getByTestId("outcome-said")).toHaveTextContent(o.sfError + (o.sfDescription ? `, "${o.sfDescription}"` : ""));
-      else expect(within(box).getByTestId("outcome-said")).toHaveTextContent(/not captured/); // never an invented Salesforce wording
-      expect(box).toHaveTextContent(/UNVERIFIED as a product claim/);
+      else expect(within(box).queryByTestId("outcome-said")).toBeNull(); // never an invented Salesforce wording
+      expect(box.textContent).not.toMatch(LABEL_TEXT);
       expect(screen.queryByTestId("signed-in-line")).toBeNull();
       // the raw request and response of the call go through the shared JsonPane
       expect(screen.getByTestId("last-action")).toHaveTextContent("wizard.signIn");
-      expect(within(box).getByTestId("outcome-basis")).toHaveTextContent(o.basis); // observed or lab-inferred, never silent
+      expect(within(box).queryByTestId(LABEL_ID("outcome-~"))).toBeNull(); // no label chip
     });
   }
 
-  it("an unknown Username is refused with its cause and fix", async () => {
-    const user = await h.mount({ seed: ["fail-wrong-username", upToWrongUsername], page: "connect" });
+  it("a Username the guide records no failure for is the lab's own refusal and claims nothing about Salesforce", async () => {
+    const user = await h.mount({ seed: ["fail-client-id", 12], page: "connect" });
     await screen.findByTestId("wizard");
-    await user.type(screen.getByTestId("consumer-key"), C.castConsumerKey);
-    await user.type(screen.getByTestId("authorized-user"), "nobody@nowhere.example");
-    await user.click(screen.getByTestId("check-signin"));
-    const box = await screen.findByTestId("signin-refused");
-    expect(box).toHaveTextContent(OUTCOMES.unknown_username.cause);
-    expect(box).toHaveTextContent(OUTCOMES.unknown_username.fix);
-  });
-
-  it("says the order of the sign-in checks is the lab's own choice, and marks lab-inferred outcomes distinctly from observed ones", async () => {
-    const user = await h.mount({ seed: ["fail-wrong-username", upToWrongUsername], page: "connect" });
-    await screen.findByTestId("wizard");
-    expect(screen.getByTestId("sign-in-order-note")).toHaveTextContent(/lab's order is its own choice/);
-    expect(within(screen.getByTestId("sign-in-order")).getAllByRole("listitem").length).toBe(13);
     await user.type(screen.getByTestId("consumer-key"), C.castConsumerKey);
     await user.type(screen.getByTestId("authorized-user"), C.castAdminEmail);
     await user.click(screen.getByTestId("check-signin"));
     const box = await screen.findByTestId("signin-refused");
-    expect(within(box).getByTestId("outcome-basis")).toHaveTextContent("lab-inferred");
-    expect(within(box).getByTestId("basis")).toHaveAttribute("data-state", "warn");
-    expect(within(box).getByTestId("outcome-basis")).toHaveTextContent(/lab-inferred: the guide gives the advice or the symptom/);
+    expect(box).toHaveTextContent("not_modelled");
+    expect(box).toHaveTextContent(OUTCOMES.not_modelled.cause);
+    expect(within(box).queryByTestId("outcome-said")).toBeNull();
+  });
+
+  it("there is no sign-in check order card and no label anywhere on the page", async () => {
+    await h.mount({ page: "connect" });
+    await screen.findByTestId("wizard");
+    expect(screen.queryByTestId("sign-in-order")).toBeNull();
+    expect(document.querySelector("main").textContent).not.toMatch(LABEL_TEXT); expect(document.querySelector("main").textContent).not.toMatch(/lab's own choice|wrong on purpose/);
   });
 
   it("a clock move over the lab's limit is a named refusal (clock_limit), not a silent no-op", async () => {
@@ -74,11 +67,10 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(screen.getByTestId("last-action")).toHaveTextContent("clock_limit");
   }, 30000);
 
-  it("the wizard's quick fills type the Username or the (wrong) email of an org user", async () => {
+  it("the wizard's quick fill types the Username of an org user", async () => {
     const user = await h.mount({ seed: ["happy-path", 12], page: "connect" });
     await screen.findByTestId("wizard");
-    await user.click(screen.getByTestId("fill-email-sfu-1"));
-    expect(screen.getByTestId("authorized-user")).toHaveValue(C.castAdminEmail);
+    expect(screen.queryByTestId("fill-email-sfu-1")).toBeNull();
     await user.click(screen.getByTestId("fill-username-sfu-1"));
     expect(screen.getByTestId("authorized-user")).toHaveValue(C.castAdminUsername);
   });
@@ -97,7 +89,11 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(screen.getByTestId("cert-cert-1")).toHaveTextContent("current");
     await user.click(screen.getByTestId("create-eca"));
     await screen.findByTestId("eca-title");
-    expect(screen.getByTestId("eca-active")).toHaveTextContent("not active yet");
+    expect(screen.getByTestId("eca-active")).toHaveTextContent("A new app can take up to 10 minutes to activate; waiting 2 to 10 minutes is the fix.");
+    expect(screen.getByTestId("eca-active")).not.toHaveTextContent(/not active yet|\bactive\b.*\bfrom\b/);
+    // only the two scopes the guide names
+    for (const gone of ["web", "full", "id"]) expect(screen.queryByTestId(`scope-${gone}`), gone).toBeNull();
+    expect(screen.getByTestId("scope-api").closest("fieldset")).toHaveTextContent("refresh_token, offline_access");
     // scopes, JWT bearer, certificate, Permitted Users
     await user.click(screen.getByTestId("scope-api"));
     await waitFor(() => expect(screen.getByTestId("scope-api")).toBeChecked());
@@ -122,6 +118,8 @@ describe("Connect page: the wizard rehearsal", () => {
     await user.click(screen.getByTestId("assign-btn"));
     await waitFor(() => expect(screen.getByTestId("checklist")).toHaveTextContent("6 of 6"));
     // too early: the same generic error, not propagated
+    expect(screen.getByTestId("request-code")).toHaveTextContent("Salesforce emails a verification code to the app's contact email");
+    expect(screen.queryByText(/Email me a verification code/)).toBeNull();
     await user.click(screen.getByTestId("request-code"));
     const mail = await screen.findByTestId("mailbox");
     const code = /Code (\d+)/.exec(mail.textContent)[1];
@@ -144,7 +142,7 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(screen.getByTestId("signin-ok")).toHaveTextContent(OUTCOMES.signed_in.cause);
     expect(screen.getByTestId("signin-ok")).not.toHaveTextContent(/Salesforce said|was not captured|failure/i); // a success carries no failure sentence
     expect(screen.queryByTestId("outcome-said")).toBeNull();
-    expect(screen.getByTestId("check-note")).toHaveTextContent(/this lab's own button.*automatically as soon as the three values are filled/);
+    expect(screen.getByTestId("check-note")).toHaveTextContent(/runs automatically as soon as the three values are filled/);
     // Create Application
     await user.type(screen.getByTestId("app-name"), "abc");
     expect(screen.getByTestId("create-app")).toBeDisabled(); // needs 4 characters
@@ -197,12 +195,12 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(title.querySelector("b")).toBeNull();
   });
 
-  it("shows the guide's troubleshooting table, labelled", async () => {
+  it("shows the guide's troubleshooting table", async () => {
     const user = await h.mount({ page: "connect" });
     await screen.findByTestId("wizard");
     await user.click(screen.getByText(/The guide's table/));
     const rows = within(screen.getByTestId("troubleshooting")).getAllByRole("row");
-    expect(rows.length).toBe(17); // the header and the 16 symptoms
-    expect(within(screen.getByTestId("troubleshooting")).getAllByText("lab-inferred").length).toBeGreaterThanOrEqual(1);
+    expect(rows.length).toBe(16); // the header and the 15 symptoms
+    expect(within(screen.getByTestId("troubleshooting")).queryByText(/lab-inf/)).toBeNull();
   });
 });

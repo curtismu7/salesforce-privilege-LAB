@@ -4,8 +4,6 @@ import "@xyflow/react/dist/style.css";
 import useStepper from "../hooks/useStepper";
 import { SPEEDS } from "../stepper.js";
 import { REFIT_EVENT, useFitOnResize } from "../hooks/useFitOnResize";
-import { ClaimTag } from "./Bits";
-import Basis from "./Basis.jsx";
 import { ArrowNoLabel, EdgeLabels, FitOpen, Passport, PassportActions } from "../diagram-kit/DiagramKit.jsx";
 import { boxPassport, sidePoint } from "../diagram-kit/diagramKit.js";
 import "../diagram-kit/diagram-kit.css";
@@ -75,7 +73,7 @@ function Canvas({ pattern, graph, positions, onMove, stepper, open, setOpen }) {
   });
   // One label per arrow, in a layer above the boxes. A reply along the same pair of boxes starts a little above or below its partner (labelOffsets).
   const labels = pattern.steps.map((s, i) => ({
-    id: `e${i}`, text: `${i + 1}. ${s.label}${s.basis === "lab-invented" ? " (lab-invented)" : ""}`, source: s.from, target: s.to, sourceHandle: edges[i].sourceHandle, targetHandle: edges[i].targetHandle,
+    id: `e${i}`, text: `${i + 1}. ${s.label}`, source: s.from, target: s.to, sourceHandle: edges[i].sourceHandle, targetHandle: edges[i].targetHandle,
     active: stepper.step === i, dim: stepper.step >= 0 && !(i <= stepper.step), prefer: offs[i],
   }));
   // What an expanded box can do: open the box at the far end of an arrow, close itself, and make a link that opens this page with the box expanded.
@@ -130,19 +128,18 @@ export default function PatternDiagram({ pattern, resetSignal = 0 }) {
   const [open, setOpen] = useState(() => { const box = new URLSearchParams(window.location.search).get("box"); return box && pattern.nodes.some((n) => n.id === box) ? box : null; }); // a shared link's box
   const onMove = useCallback((id, p) => setPositions((cur) => ({ ...cur, [id]: { x: p.x, y: p.y } })), []);
   const step = stepper.step >= 0 ? pattern.steps[stepper.step] : null;
-  const allObserved = pattern.steps.every((s) => (s.basis || "observed") === "observed");
   // Reset restores box positions as well as the walkthrough and the view. The page-level Reset raises resetSignal.
   const reset = useCallback(() => { dispatch({ type: "stop" }); setPositions(initial); setOpen(null); setTimeout(() => window.dispatchEvent(new Event(REFIT_EVENT)), 0); }, [dispatch, initial]);
   const seen = useRef(resetSignal);
   useEffect(() => { if (seen.current !== resetSignal) { seen.current = resetSignal; reset(); } }, [resetSignal, reset]);
   return (
     <section className="pat" aria-label={pattern.title}>
-      <h2 className="pat__title">{pattern.title} {allObserved ? <ClaimTag /> : <span className="tag" data-state="warn" data-testid="mixed-tag" title="Each arrow carries its own label: observed, lab-inferred or lab-invented">mixed: see each step</span>}</h2>
+      <h2 className="pat__title">{pattern.title}</h2>
       <p className="muted">{pattern.intro}</p>
       <Controls2 s={stepper} dispatch={dispatch} onReset={reset} caption={step ? step.label : ""} />
       {step && (
         <article className="panel" data-testid="pattern-now">
-          <h3 className="panel__sub">Arrow {stepper.step + 1}: {step.label} {step.basis && <Basis basis={step.basis} label={step.basisLabel} testId="pattern-now-basis" />}</h3>
+          <h3 className="panel__sub">Arrow {stepper.step + 1}: {step.label}</h3>
           <p>{step.say}</p>
         </article>
       )}
@@ -150,7 +147,7 @@ export default function PatternDiagram({ pattern, resetSignal = 0 }) {
       <ReactFlowProvider>
         <Canvas pattern={pattern} graph={graph} positions={positions} onMove={onMove} stepper={stepper} open={open} setOpen={setOpen} />
       </ReactFlowProvider>
-      <p className="muted">Drag any box; drag the background to pan. Simulated; hosts are examples; {allObserved ? "every claim is observed on one org and one Privilege build, UNVERIFIED as a product claim" : "each arrow says whether it is observed, lab-inferred or lab-invented; all of it is UNVERIFIED as a product claim"}. Moved: {Object.keys(positions).filter((k) => positions[k].x !== initial[k].x || positions[k].y !== initial[k].y).length} box(es).</p>
+      <p className="muted">Drag any box; drag the background to pan. Hosts are examples. Moved: {Object.keys(positions).filter((k) => positions[k].x !== initial[k].x || positions[k].y !== initial[k].y).length} box(es).</p>
     </section>
   );
 }

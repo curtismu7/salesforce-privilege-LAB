@@ -15,7 +15,7 @@ import net from 'node:net';
 import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
 import { isLoopbackHost } from './safety.js';
 import { refuse } from './errors.js';
-import { OUTCOMES, OBSERVED, LIVE_LABEL } from './data.js';
+import { OUTCOMES } from './data.js';
 import { newTrace, formatTraceparent } from './trace.js';
 import { maskText } from './shared/mask.js';
 
@@ -188,7 +188,7 @@ export function createRealOrg(env = process.env, limits = {}) {
     if (t.status < 200 || t.status >= 300) {
       const sfError = short(tj && tj.error, 60); const sfDescription = short(tj && tj.error_description, 200);
       // Tie Salesforce's answer to the troubleshooting data: every outcome whose recorded error code is the one Salesforce sent (the lab cannot tell which).
-      const candidates = Object.entries(OUTCOMES).filter(([id, d]) => id !== 'signed_in' && sfError && d.sfError === sfError).map(([id, d]) => ({ id, label: OBSERVED, cause: d.cause, fix: d.fix }));
+      const candidates = Object.entries(OUTCOMES).filter(([id, d]) => id !== 'signed_in' && sfError && d.sfError === sfError).map(([id, d]) => ({ id, cause: d.cause, fix: d.fix }));
       throw refuse('salesforce_sign_in_rejected', 'Salesforce refused the JWT-bearer sign-in', 502, { salesforce: { status: t.status, error: sfError, error_description: sfDescription }, candidates, hops });
     }
     const token = tj && typeof tj.access_token === 'string' ? tj.access_token : null;
@@ -204,7 +204,7 @@ export function createRealOrg(env = process.env, limits = {}) {
     };
     const sets = (await query('permission sets', SOQL.permissionSets)).map((r) => ({ id: short(r.Id, 18), label: short(r.Label), name: short(r.Name) }));
     const users = (await query('users', SOQL.users)).map((r) => ({ id: short(r.Id, 18), username: short(r.Username, 200), email: short(r.Email, 200), name: short(r.Name), active: r.IsActive === true }));
-    return { fetchedAt: new Date().toISOString(), host: o.host, readOnly: true, basis: 'live', label: LIVE_LABEL, permissionSets: sets, users, hops, traceId: trace.traceId };
+    return { fetchedAt: new Date().toISOString(), host: o.host, readOnly: true, permissionSets: sets, users, hops, traceId: trace.traceId };
   }
   return { configured: true, reason: null, host: o.host, origin, read };
 }

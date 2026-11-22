@@ -1,16 +1,17 @@
-// Scenarios are data: every step gives its expected result in every vertical, every {{token}} is defined, every claim is labelled.
+// Scenarios are data: every step gives its expected result in every vertical, every {{token}} is defined, no label states.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERTICALS, unfilled, fillDeep, loadCast, DEFAULT_CAST } from '../src/cast.js';
 import { SCENARIOS, PRESETS, runScenario } from '../src/scenarios.js';
 import { buildStory, rawStory, renderTalkTrackMarkdown } from '../src/story.js';
-import { OUTCOMES, OBSERVED, TROUBLESHOOTING, CLAIMS, labelFor } from '../src/data.js';
+import { OUTCOMES, TROUBLESHOOTING, BANNER } from '../src/data.js';
 import { scanHosts, scanKeys } from '../src/safety.js';
 import fs from 'node:fs';
 
 test('there are at least the required scripted scenarios', () => {
   const ids = SCENARIOS.map((s) => s.id);
-  for (const want of ['happy-path', 'fail-client-id', 'fail-not-propagated', 'fail-not-preauthorized', 'fail-refresh-scope', 'fail-cert-mismatch', 'fail-cert-expired', 'fail-wrong-username', 'duplicate-email', 'grant-expires', 'revoke-by-delete', 'hand-assigned-drift']) assert.ok(ids.includes(want), want);
+  for (const want of ['support-p1', 'happy-path', 'fail-client-id', 'fail-not-propagated', 'fail-not-preauthorized', 'fail-refresh-scope', 'fail-cert-mismatch', 'fail-permset-link', 'duplicate-email', 'link-pitfalls', 'grant-rules', 'revoke-by-delete']) assert.ok(ids.includes(want), want);
+  assert.equal(ids.length, 12, 'the README says 12 scenarios');
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
 });
 
@@ -59,16 +60,14 @@ test('the cast is fictional: every email and host is on a .example name (never e
   assert.notEqual(c.castFEmail, c.castFSfEmail, 'the Federation ID user differs by email on purpose');
 });
 
-test('every claim, outcome and troubleshooting row carries a label for its basis (observed, lab-inferred or lab-invented), and every outcome has a cause and a fix', () => {
+test('the only honesty text is the simulation banner; every outcome has a cause and a fix; nothing is presented as a Ping statement', () => {
   const s = buildStory(DEFAULT_CAST, 'finance');
-  for (const c of s.claims) { assert.equal(c.basis, 'observed', c.id); assert.equal(c.label, OBSERVED, c.id); }
-  for (const c of [...s.troubleshooting, ...s.outcomes]) { assert.ok(['observed', 'lab-inferred'].includes(c.basis), c.id || c.symptom); assert.equal(c.label, labelFor(c.basis), c.id || c.symptom); }
-  for (const c of s.labInvented) { assert.equal(c.basis, 'lab-invented'); assert.equal(c.label, s.labels['lab-invented']); }
-  assert.match(OBSERVED, /observed on one org and one Privilege build, UNVERIFIED as a product claim/);
-  for (const [id, o] of Object.entries(OUTCOMES)) { assert.ok(o.cause && o.fix && o.wording && ['observed', 'lab-inferred'].includes(o.basis), id); }
-  assert.ok(CLAIMS.length >= 10);
-  assert.match(s.banner.mock, /UNVERIFIED as a product claim/);
-  assert.ok(!/\bPing (says|confirms|states)\b/i.test(JSON.stringify(s)), 'never presented as a Ping statement');
+  assert.equal(s.banner.mock, 'Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.');
+  assert.equal(BANNER.mock, s.banner.mock);
+  for (const [id, o] of Object.entries(OUTCOMES)) assert.ok(o.cause && o.fix && !('basis' in o) && !('wording' in o), id);
+  const text = JSON.stringify({ ...s, banner: null });
+  assert.ok(!/UNVERIFIED|observed on one org|lab-invented|lab-inferred|labInvented/i.test(text), 'no label text anywhere in the story');
+  assert.ok(!/\bPing (says|confirms|states)\b/i.test(text), 'never presented as a Ping statement');
 });
 
 test('every troubleshooting row from the guide is present and every rule or outcome it names exists in the engine', () => {
@@ -77,10 +76,10 @@ test('every troubleshooting row from the guide is present and every rule or outc
   for (const t of TROUBLESHOOTING) for (const id of t.outcomes) assert.ok(Object.hasOwn(OUTCOMES, id), id);
 });
 
-test('every connect failure the guide lists is produced by a scenario', () => {
+test('every connect failure the guide records is produced by a scenario (not_modelled is the lab\'s own refusal and is produced by none)', () => {
   const produced = new Set();
   for (const sc of SCENARIOS) for (const st of runScenario(DEFAULT_CAST, sc).steps) if (st.result.outcome && !st.result.ok) produced.add(st.result.outcome.id);
-  for (const id of ['invalid_client_id', 'not_propagated', 'jwt_not_enabled', 'missing_refresh_scope', 'signature_mismatch', 'certificate_expired', 'wrong_username', 'not_preauthorized', 'permset_not_linked', 'permset_not_assigned']) assert.ok(produced.has(id), id);
+  for (const id of ['invalid_client_id', 'not_propagated', 'missing_refresh_scope', 'signature_mismatch', 'not_preauthorized', 'permset_not_linked', 'permset_not_assigned']) assert.ok(produced.has(id), id);
 });
 
 test('fillDeep is iterative: a very deep structure does not overflow the stack', () => {

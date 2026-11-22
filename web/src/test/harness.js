@@ -8,7 +8,7 @@ import { forgetWorkspace, workspaceId } from "../workspace.js";
 
 export const REAL_HOST = "org-dev-ed.my.salesforce.example";
 export const REAL_SNAPSHOT = {
-  fetchedAt: "2026-11-22T10:00:00.000Z", host: REAL_HOST, readOnly: true, basis: "live", label: "read from your org, read-only",
+  fetchedAt: "2026-11-22T10:00:00.000Z", host: REAL_HOST, readOnly: true,
   permissionSets: [{ id: "0PSxx0000000001", label: "Ledger Reader", name: "Ledger_Reader" }, { id: "0PSxx0000000002", label: "A label with a very very long name that goes on and on and on and on and on and on and on", name: "Long" }],
   users: [{ id: "005xx0000000001", username: "admin@org-dev-ed.example", email: "admin@org-dev-ed.example", name: "Pat Admin", active: true }, { id: "005xx0000000002", username: "gone@org-dev-ed.example", email: "gone@org-dev-ed.example", name: "Gone User", active: false }],
   hops: [{ label: "token", method: "POST", path: "/services/oauth2/token", status: 200, traceparent: "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01" }], traceId: "0af7651916cd43dd8448eb211c80319c",

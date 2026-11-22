@@ -57,7 +57,7 @@ export async function runChecks({ env = process.env } = {}) {
   }
   add('scenarios', wrong.length ? 'fail' : 'pass', wrong.length ? `scripted steps that do not give their expected result: ${wrong.slice(0, 6).join(', ')}` : `${SCENARIOS.length} scripted scenarios give their expected results in ${Object.keys(VERTICALS).length} verticals`);
   add('mock-outbound', guard.attempts.length === before ? 'pass' : 'fail', guard.attempts.length === before ? 'running every scenario made zero outbound attempts' : 'a scenario tried to leave the machine');
-  const unproduced = Object.keys(OUTCOMES).filter((id) => id !== 'signed_in' && !produced.has(id) && !['user_inactive', 'user_not_licensed', 'unknown_username', 'missing_api_scope'].includes(id));
+  const unproduced = Object.keys(OUTCOMES).filter((id) => id !== 'signed_in' && id !== 'not_modelled' && !produced.has(id));
   add('outcomes', unproduced.length ? 'fail' : 'pass', unproduced.length ? `sign-in outcomes no scenario produces: ${unproduced.join(', ')}` : 'every connect failure in the guide is produced by a scripted scenario, with its cause and fix');
   const bare = Object.entries(OUTCOMES).filter(([, o]) => !o.cause || !o.fix);
   add('fixes', bare.length ? 'fail' : 'pass', bare.length ? `outcomes without a cause or a fix: ${bare.map(([id]) => id).join(', ')}` : 'every outcome carries a cause and the exact fix');
@@ -71,15 +71,15 @@ export async function runChecks({ env = process.env } = {}) {
   const hosts = scanHosts(filled);
   add('story-hosts', hosts.length ? 'fail' : 'pass', hosts.length ? `non-reserved hosts: ${hosts.join(', ')}` : 'every host in the story and cast is .example or .invalid (people have an email on the org\'s .example host)');
   const diagrams = DIAGRAM_NAMES.flatMap((n) => Object.entries(VERTICALS).map(([v, c]) => ({ n, v, d: buildDiagram(c, n), c })));
-  const dBad = diagrams.filter(({ d, c }) => unfilled(JSON.stringify(d), c).length || scanHosts(JSON.stringify(d)).length || !d.steps.length || d.steps.some((s) => !s.basis));
-  add('diagrams', dBad.length ? 'fail' : 'pass', dBad.length ? `diagrams with an unfilled token, a foreign host or a step without a basis: ${dBad.map((x) => `${x.n}/${x.v}`).join(', ')}` : `${DIAGRAM_NAMES.length} diagram-studio/1 diagrams load by name and validate in ${Object.keys(VERTICALS).length} verticals, every step with a basis`);
+  const dBad = diagrams.filter(({ d, c }) => unfilled(JSON.stringify(d), c).length || scanHosts(JSON.stringify(d)).length || !d.steps.length);
+  add('diagrams', dBad.length ? 'fail' : 'pass', dBad.length ? `diagrams with an unfilled token, or a foreign host: ${dBad.map((x) => `${x.n}/${x.v}`).join(', ')}` : `${DIAGRAM_NAMES.length} diagram-studio/1 diagrams load by name and validate in ${Object.keys(VERTICALS).length} verticals`);
   const keys = scanKeys(filled);
   add('story-keys', keys.length ? 'fail' : 'pass', keys.length ? 'credential-shaped text in the story data' : 'no credential-shaped value anywhere in the story data');
 
   const ng = await netguardSelfTest();
   add('netguard', ng.ok ? 'pass' : 'fail', ng.ok ? `blocked fetch, socket, socket-by-IP, dns lookup, dns resolve and udp to a non-loopback host (${ng.blocked}/6)` : ng.detail);
 
-  add('tenant', 'pass', 'Mock: simulated only, no tenant, no credentials, no outbound network; every behaviour is observed on one org and one Privilege build, UNVERIFIED as a product claim');
+  add('tenant', 'pass', 'Mock: simulated only, no tenant, no credentials, no outbound network');
   return checks;
 }
 

@@ -1,4 +1,4 @@
-// GET /api/diagram: diagram-studio/1 data loaded by name (rules 5 and 17), per vertical, every step with a basis. And the per-scenario and talk-track basis.
+// GET /api/diagram: diagram-studio/1 data loaded by name (rules 5 and 17), per vertical. Diagram 2 is "Grant and revoke": no reaper and no reconcile-clears arrow.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,12 +7,12 @@ import { DIAGRAM_NAMES, buildDiagram, diagramProblems, loadDiagram, rawDiagram, 
 import { validateDiagram } from '../src/diagramStudioValidate.js';
 import { VERTICALS, unfilled } from '../src/cast.js';
 import { scanHosts, scanKeys } from '../src/safety.js';
-import { LAB_INFERRED, LAB_INVENTED, OBSERVED, TALK_TRACK } from '../src/data.js';
-import { SCENARIOS, SCENARIO_BASIS, scenarioList } from '../src/scenarios.js';
+import { TALK_TRACK } from '../src/data.js';
+import { SCENARIOS, scenarioList } from '../src/scenarios.js';
 import { buildStory } from '../src/story.js';
 
 test('the two diagrams the page expects exist, are valid diagram-studio/1 files on disk, and load by name only', () => {
-  assert.deepEqual(DIAGRAM_NAMES, ['connect-and-link', 'grant-expire-revoke']);
+  assert.deepEqual(DIAGRAM_NAMES, ['connect-and-link', 'grant-and-revoke']);
   for (const n of DIAGRAM_NAMES) {
     const doc = JSON.parse(fs.readFileSync(new URL(`../diagrams/${n}.json`, import.meta.url), 'utf8'));
     assert.deepEqual(validateDiagram(doc), [], n); assert.equal(doc.schema, 'diagram-studio/1'); assert.equal(doc.id, n);
@@ -21,7 +21,7 @@ test('the two diagrams the page expects exist, are valid diagram-studio/1 files 
   for (const bad of ['', 'nope', '__proto__', 'constructor', '../diagrams/connect-and-link', 'connect-and-link.json', 'CONNECT-AND-LINK', undefined, 7, null]) { assert.equal(hasDiagram(bad), false, String(bad)); }
 });
 
-test('every name x vertical: the shape the page reads, every token filled, only .example hosts, no key, every step has a basis and its label', async () => {
+test('every name x vertical: the shape the page reads, every token filled, only .example hosts, no key, no basis or label on a step', async () => {
   await withServer(async (url) => {
     for (const name of DIAGRAM_NAMES) for (const [vertical, cast] of Object.entries(VERTICALS)) {
       const r = await get(url, `/api/diagram?name=${name}&vertical=${vertical}`);
@@ -34,7 +34,7 @@ test('every name x vertical: the shape the page reads, every token filled, only 
       for (const n of d.nodes) { assert.deepEqual(Object.keys(n).sort(), ['id', 'kind', 'label', 'x', 'y']); assert.ok(['you', 'gateway', 'upstream', 'audit'].includes(n.kind)); assert.ok(Number.isFinite(n.x) && Number.isFinite(n.y)); }
       for (const s of d.steps) {
         assert.ok(ids.has(s.from) && ids.has(s.to), 'an arrow joins two listed boxes'); assert.ok(s.label && s.say);
-        assert.ok(['observed', 'lab-invented'].includes(s.basis)); assert.equal(s.basisLabel, s.basis === 'observed' ? OBSERVED : LAB_INVENTED);
+        assert.deepEqual(Object.keys(s).sort(), ['from', 'label', 'say', 'title', 'to']);
       }
       const text = JSON.stringify(d);
       assert.deepEqual(unfilled(text, cast), [], `${name}/${vertical}`); assert.ok(!text.includes('{{'));
@@ -50,14 +50,15 @@ test('every name x vertical: the shape the page reads, every token filled, only 
   });
 });
 
-test('the lab-invented steps are exactly the reaper, the reconcile-clears arrow and the hand-assigned drift; connecting is all observed', () => {
-  const c = buildDiagram(VERTICALS.finance, 'connect-and-link');
-  assert.ok(c.steps.every((s) => s.basis === 'observed'));
-  const g = buildDiagram(VERTICALS.finance, 'grant-expire-revoke');
-  assert.match(g.steps.find((s) => /Expired \/ Revoked/.test(s.title)).say, /Expired \/ Revoked shows 1/);
-  assert.ok(!g.steps.some((s) => s.basis === 'observed' && /\(the window closed\)/.test(s.say)));
-  assert.deepEqual(g.steps.filter((s) => s.basis === 'lab-invented').map((s) => s.title), ['The reaper removes access when the window closes', 'The next reconcile or Sync removes the assignment', 'Reconcile finds access assigned by hand']);
-  for (const s of g.steps.filter((x) => x.basis === 'lab-invented')) assert.match(s.say, /LAB-INVENTED/);
+test('diagram 2 is "Grant and revoke": no reaper, no reconcile-clears arrow and no drift step; the revoke path is delete, Revoke pending (on the policy), removed, Expired / Revoked', () => {
+  const g = buildDiagram(VERTICALS.finance, 'grant-and-revoke');
+  assert.equal(g.title, 'Grant and revoke');
+  const text = JSON.stringify(g);
+  assert.ok(!/reaper|reconcile (clears|finds|removes)|next reconcile|hand-assigned|drift|lab-invented|LAB-INVENTED|window closes/i.test(text), 'nothing unproven is drawn');
+  assert.deepEqual(g.steps.map((s) => s.title), ['Grant with a duration', 'The assignment is made in Salesforce', 'A receipt says Granted', 'Delete the policy', 'Revoke pending, access still live', 'The assignment is removed', 'The receipt reads Expired / Revoked']);
+  assert.ok(!g.nodes.some((n) => /reaper/i.test(n.label)));
+  assert.ok(!JSON.stringify(g).match(/Receipt: Revoke pending|receipt reads Revoke pending|Receipt: Revoked|receipt reads Revoked/), 'no receipt status the guide does not record');
+  assert.match(g.steps.find((s) => /removed/.test(s.title)).say, /Expired \/ Revoked shows 1/);
 });
 
 test('an unknown or missing name is a JSON error that never echoes the name; a wrong method is a 405', async () => {
@@ -65,7 +66,7 @@ test('an unknown or missing name is a JSON error that never echoes the name; a w
     const probe = 'ghp_' + 'Zx9Qw8Er7Ty6Ui5Op4As3Df2Gh1Jk0LzXcVb';
     for (const bad of ['nope', '__proto__', '..%2Fx', 'CONNECT-AND-LINK', probe]) {
       const r = await get(url, `/api/diagram?name=${bad}`); assert.equal(r.status, 404, bad); const b = await r.json();
-      assert.equal(b.error, 'unknown_diagram'); assert.match(b.message, /connect-and-link, grant-expire-revoke/); assert.ok(!JSON.stringify(b).includes(probe.slice(4, 20)));
+      assert.equal(b.error, 'unknown_diagram'); assert.match(b.message, /connect-and-link, grant-and-revoke/); assert.ok(!JSON.stringify(b).includes(probe.slice(4, 20)));
     }
     for (const q of ['', '?name=', '?other=1', '?name=a&name=b']) { const r = await get(url, `/api/diagram${q}`); assert.ok([400, 404].includes(r.status), q); assert.deepEqual(Object.keys(await r.json()).sort(), ['error', 'message']); }
     assert.equal((await get(url, '/api/diagram')).status, 400);
@@ -73,41 +74,33 @@ test('an unknown or missing name is a JSON error that never echoes the name; a w
   });
 });
 
-test('a diagram step without a basis, or with a bad one, is refused when the data loads', () => {
-  const d = JSON.parse(fs.readFileSync(new URL('../diagrams/connect-and-link.json', import.meta.url), 'utf8'));
-  assert.deepEqual(diagramProblems(d), []);
-  const none = structuredClone(d); delete none.steps[0].basis;
-  assert.deepEqual(validateDiagram(none), [], 'the studio validator ignores the extra field');
-  assert.match(diagramProblems(none).join(), /step 1: basis must be one of/);
-  const bad = structuredClone(d); bad.steps[2].basis = 'sure-thing';
-  assert.match(diagramProblems(bad).join(), /step 3: basis must be one of/);
+test('a diagram step carries no basis field: the data on disk has none', () => {
+  for (const n of DIAGRAM_NAMES) {
+    const d = JSON.parse(fs.readFileSync(new URL(`../diagrams/${n}.json`, import.meta.url), 'utf8'));
+    assert.deepEqual(diagramProblems(d), []);
+    assert.ok(d.steps.every((s) => !('basis' in s)), n);
+  }
   assert.match(diagramProblems({}).join(), /schema/);
 });
 
-test('every scenario has a basis and a matching label; the table covers exactly the scenarios', () => {
-  assert.deepEqual(Object.keys(SCENARIO_BASIS).sort(), SCENARIOS.map((s) => s.id).sort());
+test('the scenario list carries no basis and no label, and has exactly the scenarios the data lists; the removed ones are gone', async () => {
   const list = scenarioList(VERTICALS.finance);
-  for (const sc of list) { assert.equal(sc.basis, SCENARIO_BASIS[sc.id], sc.id); assert.equal(sc.label, sc.basis === 'observed' ? OBSERVED : sc.basis === 'lab-inferred' ? LAB_INFERRED : LAB_INVENTED, sc.id); }
-  for (const id of ['grant-expires', 'hand-assigned-drift', 'sign-in-breaks-later']) assert.equal(SCENARIO_BASIS[id], 'lab-invented', id);
-  for (const id of ['fail-cert-expired', 'fail-wrong-username', 'fail-jwt-not-enabled']) assert.equal(SCENARIO_BASIS[id], 'lab-inferred', id);
-  for (const id of ['duplicate-email', 'fail-client-id', 'fail-not-propagated', 'fail-cert-mismatch']) assert.equal(SCENARIO_BASIS[id], 'observed', id);
-  for (const id of ['happy-path', 'revoke-by-delete']) assert.equal(SCENARIO_BASIS[id], 'lab-inferred', `${id} ends with "the next reconcile removes it", the lab's reading`);
-});
-
-test('the scenario list over HTTP carries basis and label', async () => {
+  assert.deepEqual(list.map((s) => s.id), SCENARIOS.map((s) => s.id));
+  for (const sc of list) assert.deepEqual(Object.keys(sc).sort(), ['id', 'preset', 'presetText', 'say', 'steps', 'title']);
+  for (const gone of ['grant-expires', 'hand-assigned-drift', 'sign-in-breaks-later', 'fail-cert-expired', 'fail-wrong-username', 'fail-jwt-not-enabled']) assert.ok(!list.some((s) => s.id === gone), gone);
+  assert.equal(list[0].id, 'support-p1', 'the Support P1 story is the first scenario');
   await withServer(async (url) => {
     const { scenarios } = await (await get(url, '/api/scenarios')).json();
-    assert.ok(scenarios.length === SCENARIOS.length && scenarios.every((s) => ['observed', 'lab-inferred', 'lab-invented'].includes(s.basis) && s.label));
-    assert.equal(scenarios.find((s) => s.id === 'grant-expires').basis, 'lab-invented');
+    assert.equal(scenarios.length, SCENARIOS.length);
+    assert.ok(scenarios.every((s) => !('basis' in s) && !('label' in s)));
   });
 });
 
-test('every talk-track item has a basis and a label; the reaper and drift parts are lab-invented, the 10-minute cut-off is lab-inferred, the rest observed', () => {
+test('the talk track has the three Support P1 beats first and no basis or label on any item', () => {
   const t = buildStory(VERTICALS.finance, 'finance').talkTrack;
   assert.equal(t.length, TALK_TRACK.length);
-  for (const x of t) { assert.ok(['observed', 'lab-inferred', 'lab-invented'].includes(x.basis), x.id); assert.ok(x.label, x.id); }
-  assert.deepEqual(t.filter((x) => x.basis === 'lab-invented').map((x) => x.id), ['expire', 'drift']);
-  assert.deepEqual(t.filter((x) => x.basis === 'lab-inferred').map((x) => x.id), ['propagation']);
-  assert.equal(t.find((x) => x.id === 'propagation').label, LAB_INFERRED);
-  for (const x of t.filter((y) => y.basis === 'lab-invented')) assert.match(x.say, /lab-invented/i);
+  assert.deepEqual(t.slice(0, 3).map((x) => x.id), ['beat-1', 'beat-2', 'beat-3']);
+  for (const x of t) assert.deepEqual(Object.keys(x).sort(), ['id', 'say', 'title']);
+  assert.ok(!/reaper|expiry|expires|automatic|lab-invented|drift/i.test(JSON.stringify(t)), 'no unproven claim in the talk track');
+  assert.ok(!/receipt (now )?reads? Revoked|Granted, then Revoke pending/i.test(JSON.stringify(t)));
 });

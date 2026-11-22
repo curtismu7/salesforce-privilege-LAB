@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { visible } from "../safeText";
 import { t } from "../fmt";
-import { Basis, Card, Chip, ClaimTag, HOT, Json, LabClock, LastAction, Loading, Outcome, ReadOnlyNotice, serverProblem } from "../components/Bits.jsx";
+import { Card, Chip, HOT, Json, LabClock, LastAction, Loading, Outcome, ReadOnlyNotice, serverProblem } from "../components/Bits.jsx";
 
-const SCOPE_TEXT = { api: "api", refresh_token: "refresh_token, offline_access", web: "web", full: "full", id: "id" };
+const SCOPE_TEXT = { api: "api", refresh_token: "refresh_token, offline_access" };
 
 function Checklist({ items }) {
   const done = items.filter((i) => i.done).length;
@@ -16,7 +16,7 @@ function Checklist({ items }) {
           </li>
         ))}
       </ol>
-      <p className="muted">Privilege signs in as one integration user with a signed JWT. It works only when all of these are true. Miss one and Salesforce answers with the same generic error. <ClaimTag /></p>
+      <p className="muted">Privilege signs in as one integration user with a signed JWT. It works only when all of these are true. Miss one and Salesforce answers with the same generic error.</p>
     </Card>
   );
 }
@@ -113,11 +113,10 @@ export default function ConnectPage({ lab }) {
             {sf.users.filter((u) => u.active).slice(0, 3).map((u) => (
               <span key={u.id} className="seg">
                 <button type="button" onClick={() => setUsername(u.username)} data-testid={`fill-username-${u.id}`}>Username of {visible(u.name)}</button>
-                <button type="button" onClick={() => setUsername(u.email)} data-testid={`fill-email-${u.id}`}>Email of {visible(u.name)} (wrong on purpose)</button>
               </span>
             ))}
           </div>
-          <p className="muted" data-testid="check-note">Check sign-in is this lab's own button. In Privilege itself the check runs automatically as soon as the three values are filled.</p>
+          <p className="muted" data-testid="check-note">In Privilege itself the check runs automatically as soon as the three values are filled; the Check sign-in button is how this lab asks for it.</p>
           <div className="seg">
             <button type="button" className="primary" disabled={off || !consumerKey.trim() || !username.trim()} onClick={() => act("wizard.signIn", { consumerKey, username })} data-testid="check-signin">Check sign-in</button>
           </div>
@@ -147,7 +146,7 @@ export default function ConnectPage({ lab }) {
               <dl className="kv">
                 <dt>Name</dt><dd data-testid="eca-title">{visible(eca.name)}</dd>
                 <dt>Distribution</dt><dd>{eca.distribution}</dd>
-                <dt>Activates</dt><dd data-testid="eca-active">{eca.active ? <Chip state="ok">active</Chip> : <Chip state="warn">not active yet</Chip>} from {t(eca.activeAt)} UTC (up to 10 minutes after {t(eca.createdAt)})</dd>
+                <dt>Activation</dt><dd data-testid="eca-active">Created {t(eca.createdAt)} UTC. A new app can take up to 10 minutes to activate; waiting 2 to 10 minutes is the fix.</dd>
                 <dt>Consumer Key</dt><dd data-testid="eca-key">{reveal ? <><code>{visible(reveal)}</code> <span className="muted">{visible(eca.consumerKeyNote)}</span></> : <span className="muted">{visible(eca.consumerKeyNote)}</span>}</dd>
               </dl>
 
@@ -168,7 +167,7 @@ export default function ConnectPage({ lab }) {
                     <option value="cert-stranger">A certificate from some other key</option>
                   </select>
                 </label>
-                {cert && <p className="muted" data-testid="cert-line">{visible(cert.commonName)}, expires {t(cert.notAfterAt)} UTC {cert.expired ? <Chip state="bad">expired</Chip> : <Chip state="ok">valid</Chip>}</p>}
+                {cert && <p className="muted" data-testid="cert-line">{visible(cert.commonName)}, valid two years, until {t(cert.notAfterAt)} UTC</p>}
               </fieldset>
 
               <fieldset className="fieldset"><legend>Policies: Permitted Users</legend>
@@ -208,9 +207,9 @@ export default function ConnectPage({ lab }) {
               </fieldset>
 
               <fieldset className="fieldset"><legend>Settings, OAuth Settings: Consumer Key and Secret</legend>
-                <p className="muted">Salesforce emails a verification code first. The mailbox below is a MOCK: nothing is sent. Copy only the Consumer Key; the Consumer Secret is not used.</p>
+                <p className="muted">Salesforce emails a verification code to the app's contact email before it shows the Consumer Key. The mailbox below is a MOCK: nothing is sent. Copy only the Consumer Key; the Consumer Secret is not used.</p>
                 <div className="seg">
-                  <button type="button" disabled={off} onClick={() => act("sf.requestKeyCode")} data-testid="request-code">Email me a verification code</button>
+                  <button type="button" disabled={off} onClick={() => act("sf.requestKeyCode")} data-testid="request-code">Salesforce emails a verification code to the app's contact email</button>
                   <label className="inline">Code <input value={code} onChange={(e) => setCode(e.target.value)} aria-label="Verification code" data-testid="code" inputMode="numeric" maxLength={12} /></label>
                   <button type="button" disabled={off || !code.trim()} onClick={() => act("sf.revealConsumerKey", { code })} data-testid="reveal-key">Show Consumer Key</button>
                   {reveal && <button type="button" onClick={() => setConsumerKey(reveal)} data-testid="use-key">Use it in the wizard form</button>}
@@ -224,21 +223,14 @@ export default function ConnectPage({ lab }) {
         </Card>
       </div>
 
-      <LastAction last={last} quietFor="wizard.signIn" labInvented={story.labInvented} />
-
-      {story.signInOrder && (
-        <Card kicker="Check order" title="The order Check sign-in tests things in is the lab's own choice" testId="sign-in-order">
-          <p className="muted" data-testid="sign-in-order-note">{visible(story.signInOrder.note)} <Basis basis="lab-inferred" label={story.labels?.["lab-inferred"]} /></p>
-          <ol className="plain">{story.signInOrder.checks.map((c) => <li key={c}><code>{visible(c)}</code></li>)}</ol>
-        </Card>
-      )}
+      <LastAction last={last} quietFor="wizard.signIn" />
 
       <Card kicker="Troubleshooting" title="Symptom, cause, fix">
         <details>
-          <summary>The guide's table ({(story.troubleshooting || []).length} symptoms), each marked observed or lab-inferred</summary>
+          <summary>The guide's table ({(story.troubleshooting || []).length} symptoms)</summary>
           <div className="scroll"><table className="tbl tbl--wide" data-testid="troubleshooting">
-            <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th><th>Basis</th></tr></thead>
-            <tbody>{(story.troubleshooting || []).map((r) => <tr key={r.symptom}><td>{visible(r.symptom)}</td><td>{visible(r.cause)}</td><td>{visible(r.fix)}</td><td><Basis basis={r.basis} label={r.label} /></td></tr>)}</tbody>
+            <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+            <tbody>{(story.troubleshooting || []).map((r) => <tr key={r.symptom}><td>{visible(r.symptom)}</td><td>{visible(r.cause)}</td><td>{visible(r.fix)}</td></tr>)}</tbody>
           </table></div>
         </details>
       </Card>

@@ -1,0 +1,142 @@
+{
+  "schema": "diagram-studio/1",
+  "id": "grant-and-revoke",
+  "title": "Grant and revoke",
+  "lede": "{{castAName}} is granted {{castPermSet}} with a duration and loses it again when the policy is deleted. Simulated; hosts are examples.",
+  "groups": {
+    "you": {
+      "label": "The admin",
+      "color": "blue"
+    },
+    "gateway": {
+      "label": "PingOne Privilege (mock)",
+      "color": "red"
+    },
+    "upstream": {
+      "label": "Salesforce org (mock)",
+      "color": "grey"
+    },
+    "audit": {
+      "label": "Record",
+      "color": "grey"
+    }
+  },
+  "nodes": [
+    {
+      "id": "admin",
+      "label": "Org admin ({{castAdminName}})",
+      "group": "you",
+      "x": 0,
+      "y": 160
+    },
+    {
+      "id": "priv",
+      "label": "PingOne Privilege (mock): policy and receipts",
+      "group": "gateway",
+      "x": 420,
+      "y": 160
+    },
+    {
+      "id": "sf",
+      "label": "Salesforce org (mock): permission set assignments",
+      "group": "upstream",
+      "x": 840,
+      "y": 160
+    },
+    {
+      "id": "rec",
+      "label": "Access receipts",
+      "group": "audit",
+      "x": 420,
+      "y": 380
+    }
+  ],
+  "edges": [
+    {
+      "source": "admin",
+      "target": "priv",
+      "label": "Grant {{castPermSet}} with a duration"
+    },
+    {
+      "source": "priv",
+      "target": "sf",
+      "label": "Assign the permission set"
+    },
+    {
+      "source": "priv",
+      "target": "rec",
+      "label": "Receipt: Granted"
+    },
+    {
+      "source": "admin",
+      "target": "priv",
+      "label": "Delete the policy"
+    },
+    {
+      "source": "priv",
+      "target": "sf",
+      "label": "Policy: Revoke pending, access still live"
+    },
+    {
+      "source": "priv",
+      "target": "sf",
+      "label": "Remove the assignment"
+    },
+    {
+      "source": "priv",
+      "target": "rec",
+      "label": "Receipt: Expired / Revoked"
+    }
+  ],
+  "steps": [
+    {
+      "title": "Grant with a duration",
+      "what": "The admin grants {{castPermSet}} to {{castAName}} through a policy with a duration. Some sets are refused: one that needs a permission set license, one under another user licence, one the user already holds.",
+      "edges": [
+        0
+      ]
+    },
+    {
+      "title": "The assignment is made in Salesforce",
+      "what": "Privilege signs in and assigns the permission set to the user. In Salesforce the user's Permission Set Assignments lists it.",
+      "edges": [
+        1
+      ]
+    },
+    {
+      "title": "A receipt says Granted",
+      "what": "Access Receipts shows user, set, end date and status Granted, and the reconciliation line reads 1 confirmed.",
+      "edges": [
+        2
+      ]
+    },
+    {
+      "title": "Delete the policy",
+      "what": "There is no Revoke button: the admin deletes the policy from its three-dot menu.",
+      "edges": [
+        3
+      ]
+    },
+    {
+      "title": "Revoke pending, access still live",
+      "what": "The policy reads Revoke pending, access still live, and the assignment is still in Salesforce. It stays so until a refresh shows the removal: in the guide the removal is queued and a refresh shows it.",
+      "edges": [
+        4
+      ]
+    },
+    {
+      "title": "The assignment is removed",
+      "what": "The assignment is removed in Salesforce: reloading the user's Permission Set Assignments no longer lists the set. The policy count drops to 0 and Expired / Revoked shows 1.",
+      "edges": [
+        5
+      ]
+    },
+    {
+      "title": "The receipt reads Expired / Revoked",
+      "what": "Access Receipts shows the policy under Expired / Revoked.",
+      "edges": [
+        6
+      ]
+    }
+  ]
+}

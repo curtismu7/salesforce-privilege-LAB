@@ -1,6 +1,7 @@
-// The step 1 fix pass: label states, hostile Salesforce answers, the private-address guard, caps, atomic refusals, boundaries and the Host check.
+// The step 1 fix pass: no label states, hostile Salesforce answers, the private-address guard, caps, atomic refusals, boundaries and the Host check.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import dns from 'node:dns';
 import net from 'node:net';
 import { C, presetEngine, run, attempt, newEngine, withServer, get, post, act, rawHttp } from './helpers.js';
@@ -10,7 +11,6 @@ import { hostOf, hostCheck, isReservedHost, scanHosts, allowedExtraHosts } from 
 import { validShelfUrl, shelfInfo } from '../src/shelfLink.js';
 import { runChecks } from '../src/doctor.js';
 import { buildStory } from '../src/story.js';
-import { OUTCOMES, OBSERVED, LAB_INFERRED, LAB_INVENTED } from '../src/data.js';
 import { makeKey, tmpFile, startStub } from './stub.js';
 
 const DAY = 1440;
@@ -124,57 +124,34 @@ test('S3: the lab clock stops at ten years, iso() never throws, and the snapshot
   assert.match(e.snapshot().clock.now, /^2036-/);
 });
 
-test('S4: drift.revoke at the receipt cap is refused BEFORE anything changes: the assignment, the findings and the call log are untouched', () => {
+test('S4: a grant at the receipt cap is refused BEFORE anything changes: the assignment and the call log are untouched', () => {
   const e = presetEngine('connected');
-  run(e, 'sf.assignPermissionSet', { userId: 'sfu-2', permSetId: 'ps-1' });
-  run(e, 'app.reconcile'); e.takeCalls();
-  while (e.pv.receipts.length < LIMITS.receipts) e.pv.receipts.push({ id: `fill-${e.pv.receipts.length}`, kind: 'drift', policyId: null, privilegeUserId: 'pu-x', sfUserId: 'sfu-x', setId: 'ps-x', setLabel: 'x', startAt: 0, endAt: 0, status: 'Revoked', history: [] });
+  e.takeCalls();
+  while (e.pv.receipts.length < LIMITS.receipts) e.pv.receipts.push({ id: `fill-${e.pv.receipts.length}`, policyId: null, privilegeUserId: 'pu-x', sfUserId: 'sfu-x', setId: 'ps-x', setLabel: 'x', startAt: 0, endAt: 0, status: 'Revoked', history: [] });
   const before = JSON.stringify(e.snapshot().salesforce.assignments);
-  const r = attempt(e, 'drift.revoke', { privilegeUserId: 'pu-a', permSetId: 'ps-1' });
+  const r = attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 60 });
   assert.equal(r.code, 'workspace_full');
-  assert.equal(JSON.stringify(e.snapshot().salesforce.assignments), before, 'the assignment is still there');
-  assert.equal(e.snapshot().privilege.reconcile.findings.length, 1);
+  assert.equal(JSON.stringify(e.snapshot().salesforce.assignments), before, 'no assignment was made');
   assert.deepEqual(e.takeCalls(), [], 'no Salesforce call was made');
 });
 
-// ---- S6 and S7: label states ---------------------------------------------------------------------------------------------------------------------
-test('S6: label states: the guide\'s observed outcomes are observed; the inferred ones say lab-inferred; the sign-in order is lab-chosen', async () => {
-  const observed = ['signed_in', 'invalid_client_id', 'not_propagated', 'missing_refresh_scope', 'signature_mismatch', 'not_preauthorized', 'permset_not_linked', 'permset_not_assigned'];
-  const inferred = ['wrong_username', 'unknown_username', 'user_inactive', 'user_not_licensed', 'certificate_expired', 'missing_api_scope', 'jwt_not_enabled'];
-  assert.deepEqual([...observed, ...inferred].sort(), Object.keys(OUTCOMES).sort());
+// ---- S6 and S7: no label states -----------------------------------------------------------------------------------------------------------------
+test('S6: the story carries no label state: no basis, label, labels, labInvented, signInOrder or claims, on the story, the outcomes, the troubleshooting rows and the talk track', async () => {
   const s = buildStory(C, 'finance');
-  for (const id of observed) assert.equal(s.outcomes.find((o) => o.id === id).label, OBSERVED, id);
-  for (const id of inferred) { const o = s.outcomes.find((x) => x.id === id); assert.equal(o.basis, 'lab-inferred', id); assert.equal(o.label, LAB_INFERRED, id); }
-  assert.equal(s.signInOrder.basis, 'lab-chosen'); assert.ok(s.signInOrder.checks.length >= 12);
-  assert.deepEqual(Object.keys(s.labels).sort(), ['lab-inferred', 'lab-invented', 'live', 'observed']);
-  assert.equal(s.labels.live, 'read from your org, read-only');
+  for (const k of ['labels', 'labInvented', 'signInOrder', 'observedLabel', 'claims', 'notDemonstrated', 'durations']) assert.ok(!(k in s), k);
+  for (const row of [...s.outcomes, ...s.troubleshooting, ...s.talkTrack, ...s.scenarios]) { assert.ok(!('basis' in row) && !('label' in row), JSON.stringify(row).slice(0, 60)); }
+  assert.ok(!/lab-invented|lab-inferred|labInvented|UNVERIFIED/i.test(JSON.stringify(s)));
   await withServer(async (url) => {
-    const r = await act(url, 'wizard.signIn', { consumerKey: 'x', username: 'y' }); assert.equal(r.status, 409);
     for (const op of [['wizard.orgUrl', { url: C.castWizardUrl }], ['wizard.generateKey'], ['sf.createApp', { name: 'Four Names' }]]) await act(url, ...op);
     const b = await (await act(url, 'wizard.signIn', { consumerKey: 'x', username: 'y' }, { refusalsAs200: true })).json();
-    assert.equal(b.outcome.basis, 'observed'); assert.equal(b.outcome.label, OBSERVED);
+    assert.deepEqual(Object.keys(b.outcome).sort(), ['cause', 'fix', 'id', 'sfDescription', 'sfError']);
   });
 });
 
-test('S7: the lab-invented list names the reaper, the reconcile clearing, case-sensitivity, discovered/orphaned and the authorized user\'s rights; NOT_DEMONSTRATED says so', () => {
-  const s = buildStory(C, 'finance');
-  const ids = s.labInvented.map((i) => i.id);
-  for (const id of ['reaper', 'reconcile-clears', 'case-sensitive', 'drift-names', 'authorized-user-rights']) assert.ok(ids.includes(id), id);
-  const nd = s.notDemonstrated.join('\n');
-  assert.match(nd, /automatic expiry by a reaper/); assert.match(nd, /next reconcile or Sync clears Revoke pending/); assert.match(nd, /case-sensitive/); assert.match(nd, /authorized user's required permissions are not checked/);
-  assert.match(JSON.stringify(s.talkTrack), /lab-invented/);
-  const md = JSON.stringify(s.claims) + JSON.stringify(s.troubleshooting);
-  assert.ok(!/does not override/.test(md.replace(/did not override/g, '')), 'Federation ID wording is "did not override this in the one test run"');
-  const fed = s.claims.find((c) => c.id === 'email-match').claim; assert.match(fed, /did not override this in the one test run/);
-  assert.match(LAB_INVENTED, /lab-invented/);
-});
-
-test('B1/S5: the claims carry the four grant-dialog observations and the exact Add Users dialog text', () => {
-  const s = buildStory(C, 'finance');
-  const g = s.claims.find((c) => c.id === 'grant-rules').claim;
-  for (const t of ['0 of 4 seats free', 'Needs a permission set license', 'Already has this permission set', 'License Salesforce ≠ Cloud Integration User', '1 of 1 seats free']) assert.ok(g.includes(t), t);
-  const n = s.claims.find((c) => c.id === 'never-creates').claim;
-  assert.match(n, /Privilege doesn't create Salesforce users\. Each user you add waits here with a Create in Salesforce link that opens the prefilled New User form; after you create them in Salesforce, the next Sync links them\./);
+test('B1/S5: the grant-rule texts and the exact Add Users dialog text are kept in the guide\'s own words', () => {
+  const guide = fs.readFileSync(new URL('../../docs/setup-guide.md', import.meta.url), 'utf8');
+  for (const t of ['0 of 4 seats free', 'Needs a permission set license', 'Already has this permission set', 'License Salesforce ≠ Cloud Integration User', '1 of 1 seats free']) assert.ok(guide.includes(t), t);
+  assert.match(guide, /Privilege doesn't create Salesforce users\. Each user you add waits here with a Create in Salesforce link that opens the prefilled New User form; after you create them in Salesforce, the next Sync links them\./);
 });
 
 // ---- S8: gaps ----------------------------------------------------------------------------------------------------------------------------------
@@ -209,11 +186,12 @@ test('S8: mode strings are exact: case, spaces and look-alikes are refused', asy
   });
 });
 
-test('S8: boundaries: a grant of 1 minute and of 366 days is taken, one beyond is refused; a window closes at exactly its end; the 10-minute wait is exact', () => {
+test('S8: boundaries: a grant of 1 minute and of 366 days is taken, one beyond is refused; the end time does not end anything', () => {
   const e = presetEngine('connected');
   assert.equal(attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 1 }).ok, true);
   run(e, 'clock.advance', { minutes: 1 });
-  assert.deepEqual(e.snapshot().privilege.receipts.map((r) => r.status), ['Expired']);
+  assert.deepEqual(e.snapshot().privilege.receipts.map((r) => r.status), ['Granted'], 'the end time passed and nothing ended');
+  run(e, 'policy.delete', { policyId: 'pol-0001' }); run(e, 'app.reconcile');
   assert.equal(attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 366 * DAY }).ok, true);
   run(e, 'policy.delete', { policyId: 'pol-0002' }); run(e, 'app.reconcile');
   assert.equal(attempt(e, 'policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-1', durationMin: 366 * DAY + 1 }).code, 'bad_number');

@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 import { visible } from "../safeText";
-import { Basis, LabInvented, labInventedIds, Card, CardGrid, Chip, ClaimTag, HOT, Json, Loading, Outcome } from "../components/Bits.jsx";
+import { Card, CardGrid, Chip, HOT, Json, Loading, Outcome } from "../components/Bits.jsx";
 
 const expectText = (e) => (e === "ok" ? "Expected: it succeeds" : `Expected: it is refused with ${e}`);
 
-function Step({ step, items }) {
+function Step({ step }) {
   const refused = !step.result.ok;
   return (
     <li className="run__step" data-testid={`run-step-${step.index}`} data-met={step.met ? "true" : "false"}>
@@ -14,7 +14,6 @@ function Step({ step, items }) {
         <Chip state="info" testId={`expect-${step.index}`}>{expectText(step.expect)}</Chip>{" "}
         {step.met ? <Chip state="ok" testId={`met-${step.index}`}>As expected</Chip> : <Chip state="bad" testId={`met-${step.index}`}>Not as expected</Chip>}
       </p>
-      <LabInvented ids={labInventedIds(step.op, step.result)} items={items} testId={`step-labinv-${step.index}`} />
       {refused && <p className="field-error" role="note" data-testid={`refusal-${step.index}`}>{step.result.code}: {visible(step.result.message)}</p>}
       {refused && step.result.outcome && <Outcome outcome={step.result.outcome} />}
       <Json value={{ op: step.op, params: step.params }} label={`step ${step.index} request`} hot={HOT} />
@@ -35,7 +34,7 @@ function Step({ step, items }) {
   );
 }
 
-export default function StoryPage({ lab }) {
+export default function ScenariosPage({ lab }) {
   const { story, source } = lab;
   const [picked, setPicked] = useState(null);
   const [run, setRun] = useState(null); // { id, steps, ok, setupFailures }
@@ -59,8 +58,8 @@ export default function StoryPage({ lab }) {
 
   return (
     <div className="stack">
-      <Card kicker="Story" title="The scripted scenarios">
-        <p className="muted">{scenarios.length} scenarios, each run by the lab's own engine against a mock Salesforce org. Pick one, press Run, and walk it a step at a time: every step says what was expected and what happened, with the raw request and response. <ClaimTag label={story.observedLabel} /></p>
+      <Card kicker="Scenarios" title="The scripted scenarios">
+        <p className="muted">{scenarios.length} scenarios, each run by the lab's own engine against a mock Salesforce org. Pick one, press Run, and walk it a step at a time: every step says what was expected and what happened, with the raw request and response.</p>
         <div className="seg" role="group" aria-label="Vertical pack">
           {(story.verticals || []).map((v) => <button key={v} type="button" aria-pressed={lab.vertical === v} onClick={() => lab.setVertical(v)} data-testid={`pack-${v}`}>{v}</button>)}
         </div>
@@ -72,7 +71,7 @@ export default function StoryPage({ lab }) {
       {sc && (
         <div ref={panelRef}><Card kicker="Scenario" title={visible(sc.title)} testId="scenario-panel">
           <p className="lesson">{visible(sc.say)}</p>
-          <p className="muted">Starts from: {visible(sc.presetText)}. {sc.steps} steps. {sc.basis && <Basis basis={sc.basis} label={sc.label} testId="scenario-panel-basis" />} A step that shows something lab-invented says so under it.</p>
+          <p className="muted">Starts from: {visible(sc.presetText)}. {sc.steps} steps.</p>
           <div className="seg">
             {!shown && <button type="button" className="primary" disabled={real || lab.busy} onClick={() => go(1)} data-testid="run">Run</button>}
             {shown && <button type="button" disabled={real || lab.busy || finished} onClick={() => go(done + 1)} data-testid="next-step">Next step</button>}
@@ -80,7 +79,7 @@ export default function StoryPage({ lab }) {
             <button type="button" disabled={lab.busy} onClick={() => lab.reset().then(() => setRun(null))} data-testid="story-reset">Reset</button>
           </div>
           {error && <p className="field-error" role="alert" data-testid="run-error">{visible(error)}</p>}
-          {!shown && !error && <p className="muted">Run starts the scenario and shows step 1. The page's state (Connect, Link, Grant) follows the scenario to the step you reach.</p>}
+          {!shown && !error && <p className="muted">Run starts the scenario and shows step 1. The page's state (Support P1, Connect, Link, Grant) follows the scenario to the step you reach.</p>}
           {shown && (
             <>
               <p className="run__summary" role="status" data-testid="run-summary">
@@ -89,8 +88,8 @@ export default function StoryPage({ lab }) {
                 {finished && <> <Chip state="info">finished</Chip></>}
               </p>
               {shown.setupFailures?.length > 0 && <p className="field-error" role="alert">Setup steps that failed: {visible(shown.setupFailures.join(", "))}</p>}
-              <ol className="run" data-testid="run-steps">{shown.steps.map((st) => <Step key={st.index} step={st} items={story.labInvented} />)}</ol>
-              <p className="muted">Look at the result on <a href="#connect">Connect</a>, <a href="#link">Link</a> and <a href="#grant">Grant and revoke</a>.</p>
+              <ol className="run" data-testid="run-steps">{shown.steps.map((st) => <Step key={st.index} step={st} />)}</ol>
+              <p className="muted">Look at the result on <a href="#support">Support P1</a>, <a href="#connect">Connect</a>, <a href="#link">Link</a> and <a href="#grant">Grant and revoke</a>.</p>
             </>
           )}
         </Card></div>
@@ -103,28 +102,12 @@ export default function StoryPage({ lab }) {
               <span className="kicker">Scenario {i + 1} of {scenarios.length}</span>
               <span className="card__title">{visible(s.title)}</span>
               <span className="muted">{s.steps} steps, starting from {visible(s.presetText)}</span>
-              {s.basis && <Basis basis={s.basis} label={s.label} testId={`scenario-basis-${s.id}`} />}
             </button>
           ))}
         </CardGrid>
       )}
 
-      <Card kicker="Honesty" title="What is simulated, what is observed, and what is lab-invented" testId="honesty">
-        <p className="muted">Three labels, shown wherever a statement appears: <Basis basis="observed" /> the one real setup recorded it; <Basis basis="lab-inferred" /> the guide gives the advice or the symptom, not this exact failure; <Basis basis="lab-invented" /> not observed anywhere, only here so the demo has something to show. All of it is UNVERIFIED as a product claim.</p>
-        <details open>
-          <summary>Lab-invented ({(story.labInvented || []).length})</summary>
-          <ul className="plain" data-testid="lab-invented">{(story.labInvented || []).map((x) => <li key={x.id}><Basis basis={x.basis} label={x.label} /> {visible(x.text)}</li>)}</ul>
-        </details>
-        <details>
-          <summary>Not demonstrated ({(story.notDemonstrated || []).length})</summary>
-          <ul className="plain" data-testid="not-demonstrated">{(story.notDemonstrated || []).map((n) => <li key={n}>{visible(n)}</li>)}</ul>
-        </details>
-        <details>
-          <summary>Claims ({(story.claims || []).length})</summary>
-          <ul className="plain" data-testid="claims">{(story.claims || []).map((c) => <li key={c.id}><Basis basis={c.basis} label={c.label} /> {visible(c.claim)}</li>)}</ul>
-        </details>
-        <p className="muted">{visible(story.limitsText)}</p>
-      </Card>
+      <p className="muted" data-testid="limits">{visible(story.limitsText)}</p>
     </div>
   );
 }

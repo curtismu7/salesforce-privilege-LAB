@@ -128,9 +128,9 @@ Access is granted through a policy on the app and removed by deleting that polic
 
 ## Demo tips and limits
 
-- The default grant lasted about a year. Use the shortest duration offered so access visibly expires.
+- The default grant lasted about a year. Choose an end time; the guide recorded the end date on the receipt but we did not wait to see it end access, so end it by deleting the policy.
 - Two different Deletes: the three-dot menu on a policy removes that policy and its grant; the red Delete on the
   app card or page removes the whole Salesforce connection.
 - Keep the empty integration permission set linked to the app and assigned to the integration user.
 - The certificate expires two years after creation; regenerating means uploading a new one.
-- Not tested: granting profiles or permission set groups, approval flows, Set Up SSO.
+- Not tested: granting profiles or permission set groups, approval flows, Set Up SSO, the end time ending access by itself.

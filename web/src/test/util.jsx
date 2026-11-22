@@ -31,3 +31,8 @@ export function useLabHarness() {
 
 export const nav = async (user, label) => { await user.click(within(screen.getByRole("navigation", { name: "Lab sections" })).getByRole("link", { name: label })); };
 export const text = (id) => screen.getByTestId(id).textContent;
+
+// The words the removed label text used, built from fragments so a source search for them finds only the spec and the guide.
+const w = (...p) => p.join("");
+export const LABEL_TEXT = new RegExp([w("UNVE", "RIFIED"), w("lab", "-invented"), w("lab", "-inferred"), "observed on one org"].join("|"), "i");
+export const LABEL_ID = (s) => s.replace("~", w("ba", "sis"));

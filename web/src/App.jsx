@@ -7,7 +7,9 @@ import VerifyMark from "./components/VerifyMark.jsx";
 import useLab from "./hooks/useLab";
 import { workspaceId } from "./workspace.js";
 import PresenterSay from "./components/PresenterSay.jsx";
-import StoryPage from "./pages/StoryPage.jsx";
+import { BEATS, beatOf } from "./support.js";
+import SupportPage from "./pages/SupportPage.jsx";
+import ScenariosPage from "./pages/ScenariosPage.jsx";
 import ConnectPage from "./pages/ConnectPage.jsx";
 import LinkPage from "./pages/LinkPage.jsx";
 import GrantPage from "./pages/GrantPage.jsx";
@@ -15,7 +17,8 @@ import DiagramPage from "./pages/DiagramPage.jsx";
 import RealPage from "./pages/RealPage.jsx";
 
 export const PAGES = [
-  { id: "story", label: "Story", View: StoryPage },
+  { id: "support", label: "Support P1", View: SupportPage },
+  { id: "scenarios", label: "Scenarios", View: ScenariosPage },
   { id: "connect", label: "Connect", View: ConnectPage },
   { id: "link", label: "Link", View: LinkPage },
   { id: "grant", label: "Grant and revoke", View: GrantPage },
@@ -23,18 +26,25 @@ export const PAGES = [
   { id: "real", label: "Real", View: RealPage },
 ];
 // Never blank and never claiming one mode before it is known: until the story answers, it says both, honestly.
-export const BANNER_UNKNOWN = "SIMULATED, MOCK or REAL mode: a mock Salesforce org and a mock Privilege app, or one read-only look at one org. Every behaviour is observed on one org and one Privilege build, UNVERIFIED as a product claim.";
-// Which talk-track steps the presenter sees on each page (ids from the story's talkTrack).
-const PRESENTER_TALK = { story: ["say-first"], connect: ["connect", "propagation"], link: ["link"], grant: ["grant", "expire", "drift"], diagram: ["expire"], real: [] };
-// Lab-invented items a presenter must not read out as observed, by page (ids from the story's labInvented list).
-const PRESENTER_INVENTED = { connect: ["authorized-user-rights"], link: ["case-sensitive"], grant: ["reaper", "reconcile-clears", "drift-names", "durations"], diagram: ["reaper", "reconcile-clears"] };
+export const BANNER_UNKNOWN = "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.";
+// Which talk-track items the presenter sees on each page (ids from the story's talkTrack). The Support P1 page shows the beat the world is in.
+const PRESENTER_TALK = { scenarios: ["beat-1", "beat-2", "beat-3"], connect: ["connect"], link: ["link"], grant: ["grant"], diagram: ["grant"], real: [] };
+// One line per page above the content; the Support P1 page shows the story's own intro from the server.
+const PAGE_INTRO = {
+  scenarios: "Twelve scripted runs of the lab's own engine against the mock org: every step shows what was expected and what happened, with the raw request and response.",
+  connect: "Connecting the mock org to the mock Privilege app: the sign-in check shows every failure the setup guide records, with its cause and exact fix.",
+  link: "Linking a person: Privilege matches a Salesforce user on an identical email.",
+  grant: "Granting a permission set with a duration, and removing it by deleting its policy.",
+  diagram: "Two diagrams of the mock exchanges: connect and link, and grant and revoke.",
+  real: "",
+};
 const THEME_KEY = "sfp.theme";
 const FONT_KEY = "sfp.font";
 const THEMES = ["auto", "light", "dark"];
 function initialTheme() { try { const v = localStorage.getItem(THEME_KEY); if (THEMES.includes(v)) return v; } catch { /* storage blocked */ } return "auto"; }
 function initialFont() { try { const f = localStorage.getItem(FONT_KEY); return ["S", "M", "L"].includes(f) ? f : "M"; } catch { return "M"; } }
 // "#diagram/<name>" opens that diagram: the page is the part before the slash.
-const pageFromHash = () => { const h = window.location.hash.replace("#", "").split("/")[0]; return PAGES.some((p) => p.id === h) ? h : "story"; };
+const pageFromHash = () => { const h = window.location.hash.replace("#", "").split("/")[0]; return PAGES.some((p) => p.id === h) ? h : "support"; };
 
 export default function App() {
   const lab = useLab();
@@ -68,7 +78,8 @@ export default function App() {
   const { source, story, info } = lab;
   const banner = story && source ? story.banner[source] : BANNER_UNKNOWN;
   const View = PAGES.find((p) => p.id === page).View;
-  const say = story ? story.talkTrack.filter((x) => (PRESENTER_TALK[page] || []).includes(x.id)) : [];
+  const beat = page === "support" ? beatOf(lab.state?.support) : 0;
+  const say = !story ? [] : page === "support" ? story.talkTrack.filter((x) => x.id === `beat-${beat || 1}`) : story.talkTrack.filter((x) => (PRESENTER_TALK[page] || []).includes(x.id));
 
   return (
     <div className={`app${presenter ? " app--presenter" : ""}`}>
@@ -106,8 +117,8 @@ export default function App() {
           </div>
         )}
         <p className={resetMsg ? "reset-note" : "sr-only"} role="status" aria-live="polite" data-testid="reset-note">{resetMsg}</p>
-        {!presenter && story && <div className="page-head"><p className="head__intro" data-testid="head-intro">{lab.source === "real" ? "Real mode: one read-only look at your own org's permission sets and users. Nothing is granted, changed or deleted; the Connect, Link and Grant pages are for Mock." : story.intro}</p></div>}
-        {presenter && <PresenterSay say={say} inventedIds={PRESENTER_INVENTED[page] || []} items={story?.labInvented} />}
+        {!presenter && story && (lab.source === "real" || page === "support" || PAGE_INTRO[page]) && <div className="page-head"><p className="head__intro" data-testid="head-intro">{lab.source === "real" ? "Real mode: one read-only look at your own org's permission sets and users. Nothing is granted, changed or deleted; the Support P1, Connect, Link and Grant pages are for Mock." : page === "support" ? story.intro : PAGE_INTRO[page]}</p></div>}
+        {presenter && <PresenterSay say={say} heading={page === "support" ? `Beat ${beat || 1} of 3: ${BEATS[(beat || 1) - 1]}` : null} />}
         <div id={`panel-${page}`}>
           {lab.error && !story ? null : !story || !info ? <p className="muted" role="status">Loading...</p> : <View key={`${page}-${lab.epoch}`} lab={lab} />}
         </div>

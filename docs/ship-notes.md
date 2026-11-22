@@ -4,6 +4,7 @@ Ready-to-apply text for the rulebook's "Ship checklist for every new app" (`~/De
 
 ## 0. Before anything
 
+- Real: `scripts/setup-real.sh` (owner-run, own terminal) makes the key and certificate and writes the lab's own `.env`; see `docs/real-mode.md`. After it, the header Real button is enabled. Not part of the ship steps below: nothing in the repo or the image carries a secret.
 - Assign the real **catalog id** and replace the placeholder `D000` in `docs/shelf-entry.json` and `content-pack.json` (`npm run content-pack` rebuilds the pack; its catalog id is in `scripts/build-content-pack.mjs`). The id must be a row in the shelf's `data/catalog.json`, or the shelf refuses the entry.
 - Merge the UI branch, then rebuild: `npm ci && npm run build && npm test && npm run doctor`.
 - Gates: history scan prints 0 (`git log -p --all | grep -cF -f ~/.config/demo-kit/forbidden-strings.txt`), gitleaks clean, `ci.yml` present, `node ~/Development/demo-kit-base/scripts/conformance.mjs . --new --tier=Demo` 0 FAIL.
@@ -24,7 +25,7 @@ Add to `data/demos.json` (same text as `docs/shelf-entry.json`, with the real `c
   "addedAt": "<YYYY-MM-DD of the merge>",
   "name": "Salesforce Privilege LAB",
   "kind": "Demo",
-  "description": "Connect a Salesforce Developer org to PingOne Privilege, then grant and revoke a permission set for a time window, against a mock org: what goes wrong while connecting, and why. Mock, or an owner-run read-only Real. Observed once, UNVERIFIED.",
+  "description": "A support engineer starts with no Salesforce Case access, asks Privilege for access to work a P1, and loses it again with a receipt. Also: connecting the org and linking people. Mock, or an owner-run read-only Real. Simulated from one real run.",
   "url": "http://localhost:7835",
   "healthPath": "/api/health",
   "composeFile": "salesforce-privilege-LAB/docker-compose.yml",
@@ -92,7 +93,7 @@ Bump `VERSION` from `3.10` to the next minor (`3.11`, or the next one that is fr
 
 **New labs**
 
-- salesforce-privilege-LAB (<catalog id>, Demo, port 7835): connect a Salesforce Developer org to PingOne Privilege, then grant and revoke a permission set for a time window, against a mock org. It teaches what goes wrong while connecting (17 scripted scenarios, most of them a failure and its fix) and why. Mock by default; an owner-run, read-only Real reads one org's permission sets and users. Every behaviour is observed on one org, UNVERIFIED as a product claim.
+- salesforce-privilege-LAB (<catalog id>, Demo, port 7835): the Support P1 story. A support engineer starts with no Salesforce Case access, asks PingOne Privilege for access with a note and an end time, works the P1, and the access ends with a receipt; against a mock org. Also the connecting and linking that has to work first (12 scripted scenarios). Mock by default; after `scripts/setup-real.sh`, an owner-run, read-only Real reads one org's permission sets and users. Every behaviour shown was recorded in one real Privilege and Salesforce run.
 ```
 
 Update the `UPDATES.md` banner text under its marker to name the new lab (or empty it). Merge on green.

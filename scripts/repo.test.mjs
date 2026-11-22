@@ -60,6 +60,9 @@ test('the fork carries none of the source lab\'s identity', () => {
       if (fs.statSync(p).isDirectory()) { walk(p); continue; }
       // README and CLAUDE.md say honestly that this is a fork of the source; this test names the source on purpose.
       if (['repo.test.mjs', 'README.md', 'CLAUDE.md'].some((n) => p.endsWith(n)) || p.endsWith('.sha256')) continue;
+      // Binary files (the guide's PDF, images) are not text: a number like 7250 can appear inside their bytes by chance. The text of the
+      // PDF comes from docs/setup-guide.md, which this test does scan.
+      if (/\.(pdf|png|jpe?g|gif|ico|woff2?)$/i.test(p)) continue;
       const t = fs.readFileSync(p, 'utf8');
       for (const w of ['D104', '7250', 'SAL_LAB', 'SALAB_', 'saas-access', 'SaaS Access']) if (t.includes(w)) hits.push(`${path.relative(root, p)}: ${w}`);
     }
@@ -109,7 +112,7 @@ test('README follows the README standard: title ends in LAB, plain Tier and Repo
   for (const h of ['What is simulated', 'Run from a clone', 'Settings file', 'Ports, and what to do', 'Mock and Real modes', 'Health, doctor and reset', 'Tests', 'Troubleshooting', 'Ownership', 'Not done']) assert.match(r, new RegExp(`^## .*${h}`, 'mi'), h);
   assert.match(r, /lsof -iTCP:7835 -sTCP:LISTEN -n -P/);
   assert.match(r, /### Known limits of the model/);
-  assert.match(r, /UNVERIFIED as a product claim/);
+  assert.match(r, /Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run\./);
   assert.ok(!/ping-devops|cm[u]ir/i.test(r));
   assert.ok(!/\bdoor\b/i.test(r));
 });
