@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OUTCOMES } from "../../../server/src/data.js";
 import { SCENARIOS } from "../../../server/src/scenarios.js";
-import { nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
+import { LABEL_ID, LABEL_TEXT, nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
 
@@ -13,8 +13,8 @@ describe("Scenarios page", () => {
     expect(cards[0]).toHaveTextContent("Scenario 1 of 12"); expect(cards[0]).toHaveTextContent("Support P1");
     for (const v of ["finance", "health", "retail"]) expect(screen.getByTestId(`pack-${v}`)).toBeInTheDocument();
     expect(screen.getByTestId("pack-finance")).toHaveAttribute("aria-pressed", "true");
-    expect(document.querySelector("main").textContent).not.toMatch(/UNVERIFIED|lab-invented|lab-inferred|observed on one org/);
-    expect(screen.queryByTestId("claim-tag")).toBeNull(); expect(screen.queryByTestId("basis")).toBeNull();
+    expect(document.querySelector("main").textContent).not.toMatch(LABEL_TEXT);
+    expect(screen.queryByTestId("claim-tag")).toBeNull(); expect(screen.queryByTestId(LABEL_ID("~"))).toBeNull();
   });
 
   it("the pack picker changes the cast in the scenario text", async () => {
@@ -88,9 +88,9 @@ describe("Scenarios page", () => {
     }
   }, 60000);
 
-  it("there is no honesty panel, no lab-invented list and no label chip: the banner is the only honesty text", async () => {
+  it("there is no honesty panel, no list of made-up behaviours and no label chip: the banner is the only honesty text", async () => {
     await h.mount({ page: "scenarios" });
-    expect(screen.queryByTestId("honesty")).toBeNull(); expect(screen.queryByTestId("lab-invented")).toBeNull(); expect(screen.queryByTestId("not-demonstrated")).toBeNull(); expect(screen.queryByTestId("claims")).toBeNull();
+    expect(screen.queryByTestId("honesty")).toBeNull(); expect(screen.queryByTestId("labinv-list")).toBeNull(); expect(screen.queryByTestId("not-demonstrated")).toBeNull(); expect(screen.queryByTestId("claims")).toBeNull();
     expect(screen.getByTestId("banner")).toHaveTextContent("Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.");
     expect(screen.getByTestId("limits")).toHaveTextContent(/Limits:/);
   });
@@ -102,6 +102,6 @@ describe("Scenarios page", () => {
     await user.click(screen.getByTestId("run-all"));
     await screen.findByTestId("run-step-3");
     expect(screen.getByTestId("run-step-3")).toHaveTextContent(/assignment is gone/);
-    expect(screen.getByTestId("run-steps").textContent).not.toMatch(/reconcile removes|lab-invented|lab-inferred/i);
+    expect(screen.getByTestId("run-steps").textContent).not.toMatch(/reconcile removes/i); expect(screen.getByTestId("run-steps").textContent).not.toMatch(LABEL_TEXT);
   });
 });

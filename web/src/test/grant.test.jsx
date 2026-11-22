@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VERTICALS } from "../../../server/src/cast.js";
-import { screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
+import { LABEL_ID, LABEL_TEXT, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
 const C = VERTICALS.finance;
@@ -69,7 +69,7 @@ describe("Grant and revoke page", () => {
     const dlg = await openGrant(user);
     const dur = within(dlg).getByTestId("grant-duration");
     expect(dur.tagName).toBe("INPUT"); expect(dur).toHaveValue(60);
-    expect(dlg).not.toHaveTextContent(/lab-invented|observed default|about a year/);
+    expect(dlg).not.toHaveTextContent(/observed default|about a year/); expect(dlg.textContent).not.toMatch(LABEL_TEXT);
     await user.clear(dur); await user.type(dur, "0");
     expect(within(dlg).getByTestId("grant-submit")).toBeDisabled();
   });
@@ -136,8 +136,8 @@ describe("Grant and revoke page", () => {
     await user.click(screen.getByTestId("delete-pol-0001"));
     await waitFor(() => expect(text("policy-status-pol-0001")).toBe("Revoke pending, access still live"));
     const page = document.querySelector("main").textContent;
-    expect(page).not.toMatch(/lab-invented|lab-inferred|reaper|reconcile clears|next reconcile or Sync|UNVERIFIED|discovered|orphaned/i);
-    expect(screen.queryByTestId("note-basis")).toBeNull();
+    expect(page).not.toMatch(LABEL_TEXT); expect(page).not.toMatch(/reaper|reconcile clears|next reconcile or Sync|discovered|orphaned/i);
+    expect(screen.queryByTestId(LABEL_ID("note-~"))).toBeNull();
     expect(screen.getByTestId("last-action")).toHaveTextContent("policy.delete");
   });
 });

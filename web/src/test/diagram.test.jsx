@@ -3,7 +3,7 @@ import { jsonResponse } from "./harness.js";
 import { buildDiagram } from "../../../server/src/diagramData.js";
 import { VERTICALS } from "../../../server/src/cast.js";
 import { fireEvent, act } from "@testing-library/react";
-import { nav, screen, useLabHarness, waitFor } from "./util.jsx";
+import { LABEL_ID, LABEL_TEXT, nav, screen, useLabHarness, waitFor } from "./util.jsx";
 
 const h = useLabHarness();
 // The page talks to the lab server's REAL /api/diagram (rule 17: diagram-studio data loaded by name); the expectations come from the same data files.
@@ -20,7 +20,7 @@ describe("Diagram page (rules 5 and 17)", () => {
     expect(call.search).toMatch(/vertical=finance/);
     for (const n of DATA.nodes) expect(screen.getByTestId(`pat-node-${n.id}`)).toHaveTextContent(n.label);
     expect(document.querySelectorAll(".react-flow__node").length).toBe(DATA.nodes.length);
-    expect(document.querySelector("section.pat").textContent).not.toMatch(/UNVERIFIED|lab-invented|lab-inferred|observed on one org/);
+    expect(document.querySelector("section.pat").textContent).not.toMatch(LABEL_TEXT);
   });
 
   it("switching the diagram loads the other one by name", async () => {
@@ -106,10 +106,10 @@ describe("Diagram page (rules 5 and 17)", () => {
     for (let i = 0; i < GR.steps.length; i += 1) {
       await user.click(screen.getByTestId("next"));
       expect(screen.getByTestId("pattern-now")).toHaveTextContent(GR.steps[i].label);
-      expect(screen.queryByTestId("pattern-now-basis")).toBeNull();
+      expect(screen.queryByTestId(LABEL_ID("pattern-now-~"))).toBeNull();
     }
     const text = document.querySelector("section.pat").textContent;
-    expect(text).not.toMatch(/reaper|lab-invented|lab-inferred|reconcile clears|next reconcile|mixed|UNVERIFIED/i);
+    expect(text).not.toMatch(/reaper|reconcile clears|next reconcile|mixed/i); expect(text).not.toMatch(LABEL_TEXT);
     expect(screen.queryByTestId("mixed-tag")).toBeNull(); expect(screen.queryByTestId("claim-tag")).toBeNull();
   });
 

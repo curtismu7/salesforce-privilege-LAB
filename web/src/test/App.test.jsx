@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { REAL_HOST, fakeReal, jsonResponse } from "./harness.js";
-import { nav, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
+import { LABEL_TEXT, nav, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
 const PAGES = ["Support P1", "Scenarios", "Connect", "Link", "Grant and revoke", "Diagram", "Real"];
@@ -54,7 +54,7 @@ describe("shell: banner, header, presenter, talk track", () => {
     expect(within(dlg).getAllByRole("heading", { level: 2 }).length).toBeGreaterThanOrEqual(6);
     expect(dlg).toHaveTextContent(/Beat 1: no access/);
     expect(dlg).toHaveTextContent(/Beat 3: no access again, and a receipt/);
-    expect(dlg).not.toHaveTextContent(/Drift|reaper|lab-invented/);
+    expect(dlg).not.toHaveTextContent(/Drift|reaper/); expect(dlg.textContent).not.toMatch(LABEL_TEXT);
   });
 
   it("has a header with the shared TopMenu: mode, vertical, theme, text size, Reset", async () => {
@@ -229,7 +229,7 @@ describe("fix pass: no label chips anywhere and a toggle that is never silent", 
     await user.click(screen.getByTestId("real-read-btn"));
     const note = await screen.findByTestId("real-read-note");
     expect(note).toHaveTextContent(/read-only/);
-    expect(note).not.toHaveTextContent(/observed on one org|UNVERIFIED|lab-invented|lab-inferred/);
+    expect(note.textContent).not.toMatch(LABEL_TEXT);
   });
 
   it("pressing a mode button with the lab server down says so (modeError), never silently", async () => {

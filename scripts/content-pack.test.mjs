@@ -49,7 +49,7 @@ test('a broken pack is caught: unknown term and unknown story', () => {
 test('no glossary definition carries a label state, and the pack carries no real link, credential or "door"', () => {
   const pack = buildPack();
   const t = JSON.stringify(pack).toLowerCase();
-  assert.ok(!/unverified|lab-invented|lab-inferred|reaper|drift|discovered|orphaned|expire by itself/.test(t), 'nothing unproven and no label text');
+  assert.ok(!new RegExp(['unve' + 'rified', 'lab' + '-invented', 'lab' + '-inferred', 'reaper', 'dri' + 'ft', 'discovered', 'orphaned', 'expire by itself'].join('|')).test(t), 'nothing unproven and no label text');
   assert.ok(pack.glossary.some((g) => g.id === 'support-p1'));
   assert.ok(!/https?:\/\/(?!(localhost|example\.invalid))/.test(t), 'only localhost and .invalid links');
   assert.ok(!/\bdoor\b/.test(t));

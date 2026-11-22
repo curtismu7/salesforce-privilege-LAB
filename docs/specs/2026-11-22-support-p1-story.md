@@ -1,6 +1,6 @@
 # Support P1 story spec
 
-**Status:** draft (decisions agreed in chat 2026-11-22; open items below)   **Owner:** the lab's owner
+**Status:** built (evidence: `docs/specs/2026-11-22-support-p1-story-evidence.md`; decisions agreed in chat 2026-11-22; open items below)   **Owner:** the lab's owner
 
 ## Goal
 The lab is a connection-troubleshooting rehearsal today. Make it show **a person doing a job and what Privilege changes for them**: a support engineer starts with no Case access in Salesforce, works a P1, asks for time-boxed access, does the work, access ends, and a receipt remains. Also **remove everything that was not proven in our one real run** (no "observed / lab-inferred / lab-invented" labels: if it was not seen, it is gone), and make **Real mode ready to toggle** once the owner supplies their own org details.

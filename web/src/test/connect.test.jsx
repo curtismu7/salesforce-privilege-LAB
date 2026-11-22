@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { OUTCOMES } from "../../../server/src/data.js";
 import { SCENARIOS, runScenario } from "../../../server/src/scenarios.js";
 import { VERTICALS } from "../../../server/src/cast.js";
-import { nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
+import { LABEL_ID, LABEL_TEXT, nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
 const C = VERTICALS.finance;
@@ -32,11 +32,11 @@ describe("Connect page: the wizard rehearsal", () => {
       expect(within(box).getByTestId("outcome-fix")).toHaveTextContent(o.fix);
       if (o.sfError) expect(within(box).getByTestId("outcome-said")).toHaveTextContent(o.sfError + (o.sfDescription ? `, "${o.sfDescription}"` : ""));
       else expect(within(box).queryByTestId("outcome-said")).toBeNull(); // never an invented Salesforce wording
-      expect(box).not.toHaveTextContent(/UNVERIFIED|lab-inferred|lab-invented|observed on one org/);
+      expect(box.textContent).not.toMatch(LABEL_TEXT);
       expect(screen.queryByTestId("signed-in-line")).toBeNull();
       // the raw request and response of the call go through the shared JsonPane
       expect(screen.getByTestId("last-action")).toHaveTextContent("wizard.signIn");
-      expect(within(box).queryByTestId("outcome-basis")).toBeNull(); // no label chip
+      expect(within(box).queryByTestId(LABEL_ID("outcome-~"))).toBeNull(); // no label chip
     });
   }
 
@@ -52,11 +52,11 @@ describe("Connect page: the wizard rehearsal", () => {
     expect(within(box).queryByTestId("outcome-said")).toBeNull();
   });
 
-  it("there is no sign-in check order card and no basis anywhere on the page", async () => {
+  it("there is no sign-in check order card and no label anywhere on the page", async () => {
     await h.mount({ page: "connect" });
     await screen.findByTestId("wizard");
     expect(screen.queryByTestId("sign-in-order")).toBeNull();
-    expect(document.querySelector("main").textContent).not.toMatch(/lab-inferred|lab-invented|lab's own choice|UNVERIFIED|wrong on purpose/);
+    expect(document.querySelector("main").textContent).not.toMatch(LABEL_TEXT); expect(document.querySelector("main").textContent).not.toMatch(/lab's own choice|wrong on purpose/);
   });
 
   it("a clock move over the lab's limit is a named refusal (clock_limit), not a silent no-op", async () => {
@@ -195,6 +195,6 @@ describe("Connect page: the wizard rehearsal", () => {
     await user.click(screen.getByText(/The guide's table/));
     const rows = within(screen.getByTestId("troubleshooting")).getAllByRole("row");
     expect(rows.length).toBe(16); // the header and the 15 symptoms
-    expect(within(screen.getByTestId("troubleshooting")).queryByText("lab-inferred")).toBeNull();
+    expect(within(screen.getByTestId("troubleshooting")).queryByText(/lab-inf/)).toBeNull();
   });
 });

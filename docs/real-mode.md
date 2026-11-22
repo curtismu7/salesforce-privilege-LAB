@@ -1,6 +1,6 @@
 # Real mode (owner-run, read-only)
 
-Mock is the default and needs nothing. Real is for the owner only: it signs in once to **one** Salesforce org that you name, and **reads** its permission sets and users. It grants, changes and deletes nothing. Every statement the lab makes about Salesforce or PingOne Privilege is still "observed on one org and one Privilege build, UNVERIFIED as a product claim"; a Real read shows you your own org's list, nothing more.
+Mock is the default and needs nothing. Real is for the owner only: it signs in once to **one** Salesforce org that you name, and **reads** its permission sets and users. It grants, changes and deletes nothing. The Mock behaviours were recorded in one real Privilege and Salesforce run (`docs/setup-guide.md`); a Real read shows you your own org's list, nothing more.
 
 Agents and tests never run this against a live org. The tests use an in-process stub on loopback.
 
@@ -14,30 +14,21 @@ Agents and tests never run this against a live org. The tests use an in-process 
 
 ## Owner steps
 
-1. **Create a SEPARATE External Client App for this lab.** `docs/setup-guide.md` connects Privilege: its wizard generates Privilege's own key and certificate, so that app is Privilege's. Real mode signs in with a key and certificate of your own, so it needs a second External Client App in the same Developer org (or a different one). Create it as the setup guide's Salesforce side says: JWT Bearer Flow, the scopes `api` and `refresh_token, offline_access`, Permitted Users set to "Admin approved users are pre-authorized", and an empty permission set linked to the app and assigned to a Salesforce-licensed admin (not the built-in Integration User). The certificate you upload is the one from step 2. Wait up to 10 minutes after creating the app.
-2. **Make an RSA key and a self-signed certificate.** The lab signs with RS256 only (no EC key, no other algorithm). Two commands, with your own file names (placeholders in angle brackets):
+Run these yourself, in your own terminal. Agents and tests never run the script with real values and never touch a real `.env` or key.
 
-   ```
-   openssl genrsa -out <key-name>.pem 2048
-   openssl req -x509 -new -key <key-name>.pem -sha256 -days 730 -subj "/CN=<certificate-common-name>" -out <certificate-name>.crt
-   ```
+1. **Run `scripts/setup-real.sh`.** It checks that `openssl` is installed, makes a 2048-bit RSA key and a self-signed certificate valid two years in `secrets/` (the key is mode 600 and is never printed), prints the External Client App steps below, then asks for three values: the **org URL** (visible), the **Consumer Key** and the **Username** (both typed with hidden input, never echoed, logged or returned). It writes the lab's own `.env` (mode 600) with only the four `SF_*` names the lab reads. It refuses to overwrite an existing key, certificate or `.env` unless you pass `--force` (the old `.env` is then kept as `.env.bak.<time>`). `--dry-run` checks `openssl`, prints the steps and what it would write, and writes and asks nothing. `--host-path` writes `SF_PRIVATE_KEY_PATH` as the key's path on this Mac (host-run) instead of the Docker path `/run/secrets/sf-private-key.pem`.
+2. **Create a SEPARATE External Client App for this lab** (the script prints the same list): `docs/setup-guide.md` connects Privilege and its wizard generates Privilege's own key, which is not exportable, so Real needs a second app with its own certificate.
+   1. Setup, External Client App Manager, New External Client App; Distribution State Local.
+   2. API (Enable OAuth Settings): Enable OAuth; Callback URL `https://login.salesforce.com` (required, never used by JWT).
+   3. OAuth Scopes: `api` and `refresh_token, offline_access`.
+   4. Flow Enablement: Enable JWT Bearer Flow; upload `secrets/sf-lab-certificate.crt`.
+   5. App, Policies, Edit, OAuth Policies, Permitted Users: "Admin approved users are pre-authorized".
+   6. Create an empty permission set (license None), link it to the app (App Policies, Select Permission Sets) and assign it to a Salesforce-licensed admin, not the built-in Integration User.
+   7. Wait up to 10 minutes. Then copy only the Consumer Key (Settings, OAuth Settings; Salesforce emails a verification code first) and the exact Username from Setup, Users (not the email) for the script's prompts.
+3. **Restart the lab** so it reads the file: `docker compose up -d --build` (or `./scripts/run.sh`). Compose reads `.env` through `env_file` with `required: false`, so a missing `.env` or key never breaks `up`; the key reaches the container only through `./secrets` mounted read-only at `/run/secrets` and is never copied into the image (`.dockerignore` excludes `.env`, `secrets/` and key files, and a test pins that). Keep the key at mode 600; on a Docker host where the container user (`node`, uid 1000) does not own the file, `sudo chown 1000 secrets/sf-private-key.pem` (mode 600) keeps it private. Never make the key world-readable.
+4. **Check the mode before and after every rebuild** (rule 26): `curl -s http://127.0.0.1:7835/api/info` must report the same `source` and `realAvailable` after a rebuild as before. Once the script has run, `realAvailable` is `true` and the header **Real** button is enabled; with nothing configured it stays disabled with its how-to and `POST /api/mode {"source":"real"}` answers **409**.
 
-   Upload `<certificate-name>.crt` to the second app (Flow Enablement, Enable JWT Bearer Flow). The private key `<key-name>.pem` never leaves your machine: do not paste it anywhere, and keep it out of the repo.
-3. **Write the lab's own `.env`** beside `docker-compose.yml` (mode 600, git-ignored; `.env.example` lists the names only):
-
-   ```
-   SF_LOGIN_URL=<the org's My Domain origin, https only, no path>
-   SF_CLIENT_ID=<the app's Consumer Key>
-   SF_USERNAME=<the authorized user's Username, not the email>
-   SF_PRIVATE_KEY_PATH=<see step 4>
-   ```
-
-   `SF_LOGIN_URL` is the one and only host the lab will contact, and it must be the My Domain origin: if Salesforce answers with a different instance URL the read is refused, not followed.
-4. **Give the lab the key as a file.**
-   - **Docker (OrbStack):** copy the PEM into `./secrets/` (the folder is in the repo, empty and git-ignored, and is mounted read-only at `/run/secrets`), for example `secrets/sf-private-key.pem`, then set `SF_PRIVATE_KEY_PATH=/run/secrets/sf-private-key.pem`. The key is never copied into the image: `.dockerignore` excludes `.env`, `secrets/` and key files, and a test pins that. **Keep the key at mode 600** (`chmod 600 secrets/sf-private-key.pem`): on OrbStack the bind-mounted file is owned by the container user, so 600 works. On a Docker host where the container user (`node`, uid 1000) does not own the file, make it readable by that user, for example `sudo chown 1000 secrets/sf-private-key.pem` with mode 600 or 400. **Never make the key world-readable.**
-   - **Host-run (`npm start`):** `SF_PRIVATE_KEY_PATH` is the path of a PEM file on your Mac; keep it outside the repo.
-5. **Start the lab.** `docker compose up -d --build` (or `./scripts/run.sh`). Compose reads `.env` through `env_file` with `required: false`, so a missing `.env` or key never breaks `up`: Real then says which names are missing (never a value) and the toggle answers **409**.
-6. **Check the mode before and after every rebuild** (rule 26): `curl -s http://127.0.0.1:7835/api/info` must report the same `source` and `realAvailable` after a rebuild as before. Real configured gives `"realAvailable": true`.
+If you prefer to do it by hand, `.env.example` lists the four names and the two `openssl` commands the script runs are `openssl genrsa -out <key-name>.pem 2048` and `openssl req -x509 -new -key <key-name>.pem -sha256 -days 730 -subj "/CN=<certificate-common-name>" -out <certificate-name>.crt`.
 
 ## Using it
 

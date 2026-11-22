@@ -109,7 +109,7 @@ test('README follows the README standard: title ends in LAB, plain Tier and Repo
   for (const h of ['What is simulated', 'Run from a clone', 'Settings file', 'Ports, and what to do', 'Mock and Real modes', 'Health, doctor and reset', 'Tests', 'Troubleshooting', 'Ownership', 'Not done']) assert.match(r, new RegExp(`^## .*${h}`, 'mi'), h);
   assert.match(r, /lsof -iTCP:7835 -sTCP:LISTEN -n -P/);
   assert.match(r, /### Known limits of the model/);
-  assert.match(r, /UNVERIFIED as a product claim/);
+  assert.match(r, /Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run\./);
   assert.ok(!/ping-devops|cm[u]ir/i.test(r));
   assert.ok(!/\bdoor\b/i.test(r));
 });
