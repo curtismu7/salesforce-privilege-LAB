@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertRunObservability, classify, layerMatchers } from '../src/runObservability.js';
-import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents } from '../src/runObs.js';
+import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, recordOf } from '../src/runObs.js';
 import { createApp } from '../src/app.js';
 import { createWorkspaces } from '../src/workspaces.js';
 import { startHttpServer } from '../src/app.js';
@@ -79,6 +79,24 @@ test('a throwing writer drops its own line only, and the run stays reachable', (
   const id = runLog.mock(() => [...opEvents({ op: 'policy.grant', params: {}, result: { policyId: 'pol-1' }, auditText: 'x' }), ...callEvents([{ method: 'POST', path: '/x', status: 201 }])]);
   assert.ok(id, 'the run is stored even though a line write threw');
   assert.ok(runLog.get(id), 'reachable by id');
+});
+
+test('the chain view: the grant row carries the person and the permission set, and the policy node builds', async () => {
+  const { runLog } = capture();
+  const events = opEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a', permSetId: 'ps-4', durationMin: 60 }, result: { policyId: 'pol-0001', endAt: '2026-11-02T11:00:00.000Z', receipt: 'Granted' }, auditText: 'granted', chain: { user: 'Omar Reyes', scopes: ['Case Read Access'] } });
+  const at = new Date().toISOString();
+  const rec = await recordOf({ id: 'act-abc123-1', source: 'mock', startedAt: at, endedAt: at, events: events.map((e, seq) => ({ ...e, at, seq })), notes: [], partial: false });
+  assert.deepEqual(assertRunObservability(rec), []);
+  const c = rec.chain.chains[0];
+  assert.equal(c.user.value, 'Omar Reyes');
+  assert.deepEqual(c.scopes.values, ['Case Read Access']);
+  assert.equal(c.agent, null, 'no agent token exists in this lab');
+  assert.equal(c.policies.length, 1);
+  assert.equal(c.policies[0].decision, 'grant');
+  assert.equal(c.policies[0].id, 'pol-0001');
+  // a run with no chain keys builds no chain
+  const bare = await recordOf({ id: 'act-abc123-2', source: 'mock', startedAt: at, endedAt: at, events: opEvents({ op: 'clock.advance', params: {}, result: {}, auditText: 'clock' }).map((e, seq) => ({ ...e, at, seq })), notes: [], partial: false });
+  assert.equal(bare.chain, null);
 });
 
 test('over the API: an action answers its run id, the record route answers that record, and a refused action begins no run', async () => {

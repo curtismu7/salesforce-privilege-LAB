@@ -166,7 +166,19 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
       let head;
       if (r.ok) {
         const entry = auditAfter(auditBefore, engine);
-        const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '' }), ...callEvents(calls)]);
+        // The chain view's known steps (SPEC-chain-view-2026-11-24), only what the run itself already shows: the person the op acted for
+        // (the engine's own name for the Privilege user, or the sign-in's username), the acting principal the engine logs, and the
+        // permission set (this lab's closest thing to a scope). No agent token exists: the agent step stays "not logged".
+        const st = engine.snapshot();
+        const userName = (id) => st.privilege?.users?.find((u) => u.privilegeUserId === id)?.name;
+        const chain = {
+          ...(st.privilege?.users?.some((u) => u.privilegeUserId === (req.body.params?.privilegeUserId ?? '')) ? { user: userName(req.body.params.privilegeUserId) ?? req.body.params.privilegeUserId } : {}),
+          ...(['app.sync', 'app.reconcile'].includes(req.body.op) || req.body.op?.startsWith('sf.') ? { user: st.privilege?.app?.authorizedUser ?? undefined } : {}),
+          ...(req.body.op === 'wizard.signIn' ? { user: req.body.params?.username ?? undefined } : {}),
+          ...(req.body.op === 'support.requestAccess' ? { user: st.support?.engineer?.name ?? undefined } : {}),
+          ...(req.body.params?.permSetId || r.result?.receipt ? { scopes: [st.privilege?.policies?.find((p) => p.id === r.result?.policyId || p.id === req.body.params?.permSetId)?.setLabel ?? req.body.params?.permSetId].filter(Boolean) } : {}),
+        };
+        const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '', chain }), ...callEvents(calls)]);
         head = runId ? runField(runId) : { run: null, runNote: RECORDER_DOWN };
       } else {
         head = NO_RUN;
