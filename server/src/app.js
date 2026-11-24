@@ -22,11 +22,14 @@ import { overBounds } from './bounds.js';
 import { newTrace, formatTraceparent } from './trace.js';
 import { createRealOrg } from './real.js';
 import { shelfInfo } from './shelfLink.js';
+import { NO_RUN, createRunLog, opEvents, callEvents, recordOf, reportFailure, runField } from './runObs.js';
+import { RunObsError } from './runObservability.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = process.env.WEB_DIST || path.resolve(HERE, '../../web/dist');
 const CONFIG = process.env.CUSTOMER_CONFIG || path.resolve(HERE, '../../customer.config.json');
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const RUN_ID = /^act-[0-9a-f]{6}-[0-9]{1,9}$/;
 const TOO_BIG = 'a text (over 400 characters), a name (over 80), a list (over 20), an object (over 40 keys) or the nesting (over 6 levels) is more than the lab takes: nothing was run';
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version || null; } catch { return null; } })();
 
@@ -43,12 +46,13 @@ export const ROUTES = {
   '/api/scenarios/:id/run': ['POST'],
   '/api/state': ['GET'],
   '/api/actions': ['GET', 'POST'],
+  '/api/actions/run': ['GET'],
   '/api/real/read': ['POST'],
   '/api/reset': ['POST'],
 };
 const METHODS = buildMethodTable(ROUTES);
 
-export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), webDist = WEB_DIST, env = process.env, real = createRealOrg(env) } = {}) {
+export function createApp({ health = createHealth(), configFile = CONFIG, workspaces = createWorkspaces(), webDist = WEB_DIST, env = process.env, real = createRealOrg(env), runLog = createRunLog() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   // The page's source (rule 19). Process-wide: one lab, one owner at a time. Default: Real if configured, else Mock.
@@ -123,10 +127,10 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     });
     return hops;
   };
-  const respond = (req, res, { engine, trace, r, route }) => {
-    const hops = hopsFor(req, route, engine.takeCalls(), trace);
+  const respond = (req, res, { engine, trace, r, route, head, calls }) => {
+    const hops = hopsFor(req, route, calls ?? engine.takeCalls(), trace);
     res.set('traceparent', hops[0].traceparent);
-    const common = { workspace: req.workspaceId, source: 'mock', vertical: verticalOf(req), hops, traceId: trace.traceId, state: engine.snapshot() };
+    const common = { workspace: req.workspaceId, source: 'mock', vertical: verticalOf(req), hops, traceId: trace.traceId, state: engine.snapshot(), ...(head ?? NO_RUN) };
     if (r.ok) return res.json({ ok: true, result: r.result, ...common });
     const { ok, status, code, message, ...extra } = r;
     // A refusal the visitor asked for (a sign-in failure, a license rule) may come back as data (HTTP 200, ok: false) because a browser logs every 4xx as a
@@ -136,6 +140,12 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
   };
 
   api.get('/actions', (_req, res) => { noStore(res); res.json({ ops: Object.fromEntries(Object.entries(OPS).map(([op, [, keys]]) => [op, keys])) }); });
+  // The audit entry the engine wrote for this op: the last entry whose kind matches the op (the engine logs one per op, once it ran).
+  const auditAfter = (before, engine) => {
+    const after = engine.snapshot().audit;
+    const known = new Set(before.map((e) => e.n));
+    return [...after].reverse().find((e) => !known.has(e.n)) ?? null;
+  };
   api.post('/actions', workspace, (req, res, next) => {
     noStore(res);
     try {
@@ -147,8 +157,21 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
       if (req.body.params !== undefined && !isObj(req.body.params)) return res.status(400).json({ error: 'bad_request', message: 'params must be an object' });
       const engine = workspaces.engine(req.workspaceId, verticalOf(req), castFor(req));
       const trace = newTrace(req.headers.traceparent);
+      // Rule 27: one op is one run. The engine wrote its audit entry and made its Salesforce calls; the record is built from that
+      // computed-once outcome. A refusal the engine threw before anything ran (unknown op, bad field, not linked, workspace full) began
+      // no run: the answer carries NO_RUN instead of an older record.
+      const auditBefore = engine.snapshot().audit;
       const r = tryOp(engine, req.body.op, req.body.params ?? {});
-      return respond(req, res, { engine, trace, r, route: '/api/actions' });
+      const calls = engine.takeCalls();
+      let head;
+      if (r.ok) {
+        const entry = auditAfter(auditBefore, engine);
+        const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '' }), ...callEvents(calls)]);
+        head = runId ? runField(runId) : { run: null, runNote: RECORDER_DOWN };
+      } else {
+        head = NO_RUN;
+      }
+      return respond(req, res, { engine, trace, r, route: '/api/actions', head, calls });
     } catch (e) { return next(e); }
   });
 
@@ -195,7 +218,25 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     }
   });
 
-  api.post('/reset', workspace, (req, res) => { noStore(res); workspaces.reset(req.workspaceId); return res.json({ reset: 'ok', workspace: req.workspaceId }); });
+  // The record of one run (rule 27), asked for by the id the run's own answer carried. Every run here is Mock (Real mode runs nothing), so the
+  // mode cannot mismatch; a run the lab no longer keeps says so instead of showing another.
+  api.get('/actions/run', async (req, res) => {
+    noStore(res);
+    if (Object.keys(req.query).some((k) => k !== 'runId')) return res.status(400).json({ error: 'unknown_field', message: 'The query carries a parameter this route does not take' });
+    const id = req.query.runId;
+    if (typeof id !== 'string' || !RUN_ID.test(id)) return res.status(400).json({ error: 'bad_run_id', message: 'runId must be the id of one run' });
+    const run = runLog.get(id);
+    if (!run) return res.json({ record: null, message: NO_LONGER_KEPT });
+    try {
+      return res.json({ record: await recordOf(run) });
+    } catch (err) {
+      if (err instanceof RunObsError) return res.status(err.status).json({ error: err.code, message: err.message });
+      reportFailure('record', err);
+      return res.status(500).json({ error: 'server_error', message: 'The lab could not build this run\'s record (the server log says why).' });
+    }
+  });
+
+  api.post('/reset', workspace, (req, res) => { noStore(res); workspaces.reset(req.workspaceId); runLog.clear(); return res.json({ reset: 'ok', workspace: req.workspaceId }); });
   app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); }); // the header "Shelf" button
   api.use((_req, res) => res.status(404).json({ error: 'not_found', message: 'No such API route' }));
   app.use('/api', api);
