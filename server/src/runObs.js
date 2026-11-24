@@ -53,7 +53,7 @@ const STEP_OF = (op) => op.split('.').join('_');
 
 // The audit entry the engine wrote for this op (its text is the lab's own words for what happened) and the outcome.
 // `user` names the person the op acted for, where the op's result or params know one — only what the run itself already shows.
-export function opEvents({ op, params, result, auditText }) {
+export function opEvents({ op, params, result, auditText, chain }) {
   const step = STEP_OF(op);
   const ev = (layer, outcome, message, detail = {}) => ({
     layer, product: PRODUCT[layer], step, outcome, who: actorOf(op, params, result), message, detail,
@@ -62,6 +62,11 @@ export function opEvents({ op, params, result, auditText }) {
     ? { product: 'lab mock Privilege policy', decision: result?.receipt === 'Granted' || result?.receipt ? 'grant' : 'grant', id: result?.policyId ?? null }
     : op === 'policy.delete' ? { product: 'lab mock Privilege policy', decision: 'revoke', id: params?.policyId ?? null } : null;
   const grant = POLICY_OPS.has(op);
+  // Chain keys (SPEC-chain-view-2026-11-24), only where a decision row already shows the fact: user and scopes land on the
+  // Privilege row, as detail keys the core's chain builder reads. No agent key: this lab has no agent token or OBO exchange.
+  const chainDetail = chain && typeof chain === 'object'
+    ? { ...(chain.user ? { user: chain.user } : {}), ...(Array.isArray(chain.scopes) && chain.scopes.length ? { scopes: chain.scopes } : {}) }
+    : {};
   return [ev('privilege', grant ? 'allowed' : 'info',
     grant
       ? `${auditText} The mock Privilege policy made this grant decision; the receipt records it.`
@@ -70,6 +75,7 @@ export function opEvents({ op, params, result, auditText }) {
       op, ...(result?.policyId ? { policyId: result.policyId } : {}), ...(result?.endAt ? { endAt: result.endAt } : {}),
       ...(policy ? { policy } : {}), ...(params?.privilegeUserId ? { privilegeUserId: params.privilegeUserId } : {}),
       ...(params?.permSetId ? { permSetId: params.permSetId } : {}),
+      ...chainDetail,
     })];
 }
 
