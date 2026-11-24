@@ -72,12 +72,23 @@ The server refuses any other port on purpose (the family allocates one port per 
 | `GET /api/health`, `/api/info`, `/api/mode`, `/api/story`, `/api/scenarios`, `/api/state`, `/api/shelf` | read |
 | `GET /api/diagram?name=<name>&vertical=<v>` | a diagram-studio/1 diagram by name (`connect-and-link`, `grant-and-revoke`): `{title, intro, nodes, steps}`; an unknown name is a 404 JSON error |
 | `POST /api/mode` | exactly `{source: "mock"\|"real"}`; 409 if Real is not configured |
-| `GET /api/actions`, `POST /api/actions` | list the ops; run one: `{op, params, vertical?, refusalsAs200?}`. The one write endpoint, including the story's `support.requestAccess` (`{note, endAt}`) |
+| `GET /api/actions`, `POST /api/actions` | list the ops; run one: `{op, params, vertical?, refusalsAs200?}`. The one write endpoint, including the story's `support.requestAccess` (`{note, endAt}`). A run action's answer names its run: `run: {id}` (rule 27); a refusal before anything ran answers `run: null` with `runNote` |
+| `GET /api/actions/run?runId=<id>` | the record of one run (rule 27), by the id the run's own answer carried; a run the lab no longer keeps answers `record: null` |
 | `POST /api/scenarios/:id/run` | reset to the scenario's start and run its steps (`{upTo?, vertical?}`) |
 | `POST /api/real/read` | the one Real read, behind the confirm gate |
 | `POST /api/reset` | reset this workspace |
 
 Writes are workspace-scoped (`X-Workspace`, default `default`). Every answer to an action carries the whole state, a `traceparent` (W3C, a new span on every hop) and the hops: the browser to the lab, then each call the mock Privilege app made to the mock Salesforce org, raw. Downstream failures answer structured JSON `{error, message}`, never HTML or a blank 200.
+
+## What each layer logged for this run (rule 27)
+
+The Grant and revoke page and the Support P1 page show the shared panel under the last action: one run (one action) in time order across the six layers. Rows are what the lab's mock computed for that action; nothing is read from a product log.
+
+- **Where the lines live.** The lab process's stdout (`docker compose logs` on the lab container): one line per policy-point decision, `<time> salesforce-privilege-lab decision step=... layer=... actor=... result=passed|stopped|unclear run=<id>`. Every value passes the shared masker and the line sanitiser; no field names a matcher word, a typed name, a consumer key or a token.
+- **What is a decision.** Only a grant or a revoke is a policy point: `policy.grant`, `policy.delete` and `support.requestAccess` (the same grant through the P1 story) are allowed Privilege rows. Every other action — the app, scopes, certificates, sign-in (a credential check), sync, users, the clock — is information in the layer the work happened in. The mock Salesforce org's answer to a call Privilege made is an information Resource row, never a second decision. Person is not logged (no sign-in: the actors are names the lab gives); Agent is not logged (Privilege signs in with a JWT bearer grant, not an OBO token); Agent gateway is not logged (the lab puts no gateway in front of its mock org).
+- **No run, no record.** A refusal before anything ran (an unknown action, a field that did not pass, a user not linked, a workspace full) began no run: the page says so and shows no older record. The lab keeps the last 12 runs; Reset clears them.
+- **Not verified.** Nothing here was run against a real Salesforce org or a real Privilege tenant; every row is the mock's own event.
+- **Time.** The time the mock computed the action. Nothing is re-run to build a record. Real mode runs nothing and keeps no run.
 
 ## Tests
 

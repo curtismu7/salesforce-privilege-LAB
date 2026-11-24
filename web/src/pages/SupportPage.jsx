@@ -4,6 +4,7 @@ import { t } from "../fmt";
 import { BEATS, beatOf } from "../support.js";
 import { refusalFor } from "./GrantPage.jsx";
 import { Card, Chip, Loading, Outcome, ReadOnlyNotice, serverProblem } from "../components/Bits.jsx";
+import RunObs, { headOf } from "../components/RunObs.jsx";
 
 const END_CHOICES = [[1, "1 hour"], [2, "2 hours"], [4, "4 hours"], [8, "8 hours"], [24, "1 day"]];
 const PENDING = "Revoke pending, access still live";
@@ -168,6 +169,7 @@ export default function SupportPage({ lab }) {
 
         <OldWayPanel name={cast.castAName || "The engineer"} set={support.permissionSet || "Case Read Access"} />
       </div>
+      <RunObs head={lab.last?.response ? headOf(lab.last.response) : null} loading={busy} />
     </div>
   );
 }

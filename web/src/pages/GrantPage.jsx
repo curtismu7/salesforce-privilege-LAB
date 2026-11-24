@@ -3,6 +3,7 @@ import FloatingDialog from "../floating-dialog/FloatingDialog.jsx";
 import { visible } from "../safeText";
 import { t } from "../fmt";
 import { Card, CardGrid, Chip, LabClock, LastAction, Loading, ReadOnlyNotice } from "../components/Bits.jsx";
+import RunObs, { headOf } from "../components/RunObs.jsx";
 
 // What Privilege answers for a set and a user (the guide's three rules, in the engine's order). Shown BEFORE a grant is tried; the server's own
 // sentence is what a refusal really shows.
@@ -172,6 +173,7 @@ export default function GrantPage({ lab }) {
       </Card>
 
       <LastAction last={last} />
+      <RunObs head={last?.response ? headOf(last.response) : null} loading={busy} />
       {open && app && <GrantDialog lab={lab} app={app} linked={linked} sets={sets} assignments={sf.assignments} sfUsers={sf.users} onClose={() => setOpen(false)} />}
     </div>
   );
