@@ -7,7 +7,8 @@ import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue
 import { createApp } from '../src/app.js';
 import { createWorkspaces } from '../src/workspaces.js';
 import { startHttpServer } from '../src/app.js';
-import { C } from './helpers.js';
+import { presetEngine } from './helpers.js';
+import { verticalFrom } from '../src/cast.js';
 
 const WORDS = /refused|denied|rejected|forbidden|failed|invalid|expired|mismatch|token|audience|scope|served|unauthori[sz]ed|insufficient|not allowed/i;
 const LINE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z salesforce-privilege-lab decision step=[A-Za-z0-9._:/@-]+ layer=[a-z]+ actor=[A-Za-z0-9._:/@-]+ result=(?:passed|stopped|unclear) run=[A-Za-z0-9._:/@-]+$/;
@@ -129,17 +130,16 @@ test('over the API: an action answers its run id, the record route answers that 
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ configFile: '/nonexistent/customer.config.json', workspaces, runLog }) });
   try {
     const post = (path, body) => fetch(`${url.replace(/\/$/, '')}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, body: await r.json() }));
-    // A whole setup to a grantable state: the scenario-free path is the wizard, so drive it with ops.
+    // A connected org: the preset engine is the lab's own scripted setup, so a grant has a linked user to act on.
+    workspaces.put('default', verticalFrom(undefined), presetEngine('connected'));
     const act = async (op, params) => post('/api/actions', { op, params });
-    await act('sf.createUser', { name: 'Integration User', email: 'integ@salesforce.example', username: C.castIntegrationUsername || 'integ@salesforce.example', profile: 'Minimum Access - Salesforce' });
-    // The engine's deterministic world: use the scenario's own first preset via a run of one known-good op sequence is overkill; instead
-    // drive one op that certainly runs (clock.advance) and one that certainly refuses (policy.grant with no app).
     const clock = await act('clock.advance', { minutes: 5 });
     assert.equal(clock.status, 200);
     assert.ok(clock.body.run?.id, 'a run id answers a run action');
-    // A policy refusal (the user is not linked) is the mock Privilege policy's decision: a refused row, with a run.
-    const grant = await act('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-4', durationMin: 60 });
-    assert.notEqual(grant.status, 200, 'no app yet: the grant is refused');
+    // A policy refusal (the set needs a licence the user does not hold) is the mock Privilege policy's decision: a refused row, with a run.
+    const grant = await act('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-2', durationMin: 60 });
+    assert.equal(grant.body.error, 'needs_permission_set_license', 'the mock policy refuses a set the user has no license for');
+    assert.equal(grant.status, 422);
     assert.ok(grant.body.run?.id, 'a policy refusal is a decision, so it has a run');
     const refused = await fetch(`${url.replace(/\/$/, '')}/api/actions/run?runId=${encodeURIComponent(grant.body.run.id)}`).then((r) => r.json());
     const refusedRow = refused.record.rows.find((r) => r.layer === 'privilege' && r.origin !== 'not-logged');
