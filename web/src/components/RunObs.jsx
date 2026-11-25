@@ -8,7 +8,7 @@ import { getJson } from "../api";
 
 // Where this lab's run leaves logs and where they can stream (the README says the same).
 export const LOG_STREAMS = [
-  { product: "Salesforce Privilege LAB (this lab's container)", lives: "its stdout. Each decision of a run is one line: the time, a step, the layer, the actor, a result and a run id. A line never holds a typed name, a consumer key or a token. Mock writes one line per policy-point decision", streams: "nowhere today: the family log collector's source list does not name this container, so it would need an entry first" },
+  { product: "Salesforce Privilege LAB (this lab's container)", lives: "its stdout. Each row a run recorded is one line: the time, a step, the layer, the actor, a result and a run id. A grant or a revoke writes passed (allowed) or stopped (refused). Any other action writes unclear: its row is information, not a decision, and so does each Salesforce call the action made. A line never holds a typed name, a consumer key or a token.", streams: "nowhere today: the family log collector's source list does not name this container, so it would need an entry first" },
 ];
 
 const TITLE = "What each layer logged for this run";
@@ -43,7 +43,7 @@ const Note = ({ id, role, children }) => (
 );
 
 // The one line under the panel: what a row is in this lab, true for every action the page can make.
-const NOTE = "Rows are what the lab's mock computed for one action; nothing is read from a product log. Only a grant or a revoke (policy.grant, policy.delete, support.requestAccess) is a policy decision in the Privilege layer; every other action is configuration or a Salesforce-side step, and is information. The mock Salesforce org's answer to a call Privilege made is a Resource server row, and is information. Person is empty: the lab has no sign-in, the actors are names the lab gives. Agent is empty: Privilege signs in to Salesforce with a JWT bearer grant, not an OBO token. Agent gateway is empty: the lab puts no gateway in front of its mock org. A request that began no run (an unknown action, a field that did not pass, a workspace that was full) shows no record at all, never an older one.";
+const NOTE = "Rows are what the lab's mock computed for one action; nothing is read from a product log. Only a grant or a revoke (policy.grant, policy.delete, support.requestAccess) is a policy decision in the Privilege layer; every other action is configuration or a Salesforce-side step, and is information. The mock Salesforce org's answer to a call Privilege made is a Resource server row, and is information. Person is empty: the lab has no sign-in, the actors are names the lab gives. Agent is empty: Privilege signs in to Salesforce with a JWT bearer grant, not an OBO token. Agent gateway is empty: the lab puts no gateway in front of its mock org. A grant or a revoke the mock policy refuses (the permission set is already held, the permission set needs a licence the user does not hold, the licence does not match, the policy is not active) is one refused Privilege row. A request that began no run (a user not linked yet, an unknown action, a field that did not pass, a workspace that was full) shows no record at all, never an older one.";
 
 export default function RunObs({ head, loading = false, empty = "Nothing has run yet. Run an action and its record appears here." }) {
   const runId = !loading && head?.runId ? head.runId : null;

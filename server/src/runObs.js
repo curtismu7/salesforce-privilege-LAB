@@ -12,8 +12,9 @@
 // (engine._call) is the Resource server layer's row: what the mock org answered, information, never a second decision.
 //
 // Stdout line: `<iso> salesforce-privilege-lab decision step=<step> layer=<layer> actor=<who> result=passed|stopped|unclear run=<id>`, one per
-// decision, stamped with the row's own time. Every value passes through the masker and the line sanitiser; the matcher words the family's readers
-// look for are absent from every field.
+// recorded row of the run, stamped with the row's own time. A grant or a revoke writes passed (allowed) or stopped (refused); any other action,
+// and each Salesforce call, writes unclear (information, not a decision). Every value passes through the masker and the line sanitiser; the matcher
+// words the family's readers look for are absent from every field.
 import crypto from 'node:crypto';
 import { createMasker, createRunObservability, LAYERS } from './runObservability.js';
 
@@ -59,7 +60,7 @@ export function opEvents({ op, params, result, auditText, chain }) {
     layer, product: PRODUCT[layer], step, outcome, who: actorOf(op, params, result), message, detail,
   });
   const policy = op === 'policy.grant' || op === 'support.requestAccess'
-    ? { product: 'lab mock Privilege policy', decision: result?.receipt === 'Granted' || result?.receipt ? 'grant' : 'grant', id: result?.policyId ?? null }
+    ? { product: 'lab mock Privilege policy', decision: 'grant', id: result?.policyId ?? null }
     : op === 'policy.delete' ? { product: 'lab mock Privilege policy', decision: 'revoke', id: params?.policyId ?? null } : null;
   const grant = POLICY_OPS.has(op);
   // Chain keys (SPEC-chain-view-2026-11-24), only where a decision row already shows the fact: user and scopes land on the
@@ -93,11 +94,25 @@ function actorOf(op, params, result) {
 // The Salesforce call the engine made for this op (engine._call), as a Resource server row: what the mock org answered. Information.
 export function callEvents(calls) {
   return (calls || []).slice(0, 10).map((c, i) => ({
-    layer: 'resource', product: PRODUCT.resource, step: `sf_${lineValue((c.path || '').split('/').filter(Boolean).join('_'), 40) || 'call'}`,
+    layer: 'resource', product: PRODUCT.resource, step: `sf_call_${i + 1}`,
     outcome: 'info', who: 'privilege-app',
     message: `The mock Salesforce org answered ${c.method} ${c.path} with ${c.status}. This is the org's answer to the call Privilege made, not a policy decision.`,
     detail: { method: c.method, path: c.path, status: c.status, callSeq: i },
   }));
+}
+
+// A policy refusal of a grant or a revoke is the mock Privilege policy's own decision (the set is already held, the licence or the policy state does
+// not allow it): one refused row. Input, lookup, capacity and precondition refusals (a user not linked yet: Add Users, then Sync) are the lab's own
+// stop and begin no run.
+const POLICY_REFUSALS = new Set(['already_has_permission_set', 'needs_permission_set_license', 'license_mismatch', 'policy_not_active']);
+export function policyRefusalEvents({ op, params, code, message }) {
+  if (!POLICY_OPS.has(op) || !POLICY_REFUSALS.has(code)) return [];
+  const decision = op === 'policy.delete' ? 'revoke' : 'grant';
+  return [{
+    layer: 'privilege', product: PRODUCT.privilege, step: STEP_OF(op), outcome: 'refused', who: actorOf(op, params, null),
+    message: `${message} The mock Privilege policy refused this ${decision}.`,
+    detail: { op, reason: code, policy: { product: 'lab mock Privilege policy', decision, id: params?.policyId ?? null } },
+  }];
 }
 
 // ---- Stdout lines ------------------------------------------------------------------------------------------------------------------------------------
@@ -105,31 +120,41 @@ export function decisionLine(ev, runId) {
   return `${ev.at} ${SERVICE} decision step=${lineValue(ev.step)} layer=${lineValue(ev.layer, 12)} actor=${field(ev.who)} result=${RESULT[ev.outcome] ?? 'unclear'} run=${lineValue(runId)}`;
 }
 
-// ---- The run log: bounded, one list per workspace is enough (the mode cannot change a Mock-only run) -----------------------------------------------
+// ---- The run log: bounded, KEEP_RUNS per workspace (the mode cannot change a Mock-only run) --------------------------------------------------------
 // A run is stored BEFORE its lines are written, so a writer that throws leaves it reachable; each line is written in its own try, so one failed
-// write drops one line. Every run here is source 'mock': Real mode is read-only and runs nothing.
+// write drops one line. Every run here is source 'mock': Real mode is read-only and runs nothing. Each workspace has its own list, so one
+// workspace's Reset or its own runs never remove another's; the map itself is bounded (the oldest workspace's list goes past MAX_WORKSPACES).
+export const MAX_WORKSPACES = 500; // the same bound createWorkspaces uses
 export function createRunLog({ write = (line) => process.stdout.write(`${line}\n`), clock = Date.now } = {}) {
   const part = crypto.randomBytes(3).toString('hex'); // so an id never repeats after a restart or in another process
   let made = 0;
-  const kept = [];
-  const prune = () => { while (kept.length > KEEP_RUNS) kept.shift(); };
+  const kept = new Map(); // workspace id -> its runs, oldest first
   const line = (ev, id) => safely('line', () => write(decisionLine(ev, id)));
 
   return {
     // One op = one run. `events` is built by the caller from the outcome the engine already computed; `build` may throw, then nothing is stored.
-    mock(build) {
+    mock(build, ws) {
       return safely('mock-run', () => {
         const events = build();
         const at = new Date(clock()).toISOString();
         const run = { id: `act-${part}-${++made}`, source: 'mock', startedAt: at, endedAt: at, events: events.map((e, seq) => ({ ...e, at, seq })), notes: [], partial: false };
-        kept.push(run); prune();
+        const list = kept.get(ws) ?? [];
+        kept.delete(ws); // used now, so it moves to the most-recent end of the map
+        if (kept.size >= MAX_WORKSPACES) kept.delete(kept.keys().next().value); // the least recently used workspace goes
+        kept.set(ws, list);
+        list.push(run);
+        while (list.length > KEEP_RUNS) list.shift();
         for (const ev of run.events) line(ev, run.id);
         return run.id;
       }) ?? null;
     },
-    get(id) { return kept.find((r) => r.id === id) || null; },
-    clear() { kept.length = 0; },
-    size() { return kept.length; },
+    get(id, ws) {
+      const list = kept.get(ws);
+      if (list) { kept.delete(ws); kept.set(ws, list); } // a read is a use too
+      return (list ?? []).find((r) => r.id === id) || null;
+    },
+    clear(ws) { kept.delete(ws); },
+    size(ws) { return (kept.get(ws) ?? []).length; },
   };
 }
 export const runField = (id) => (id ? { run: { id } } : { run: null, runNote: RECORDER_DOWN });

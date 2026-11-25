@@ -57,6 +57,27 @@ describe("the states around the panel", () => {
     expect(fetched()).toEqual([url("act-abc123-1")]);
     expect(screen.getByTestId("ro-lab-note")).toHaveTextContent(/Only a grant or a revoke/);
   });
+  it("the on-page note: a user not linked yet is a stop that began no run, never a refused Privilege row", async () => {
+    serve({ [url("act-abc123-1")]: reply({ record: recordOf("act-abc123-1", "The mock Privilege policy granted it.") }) });
+    render(<RunObs head={{ runId: "act-abc123-1" }} />);
+    await waitFor(() => expect(screen.getByTestId("ro-wrap")).toBeTruthy());
+    const note = screen.getByTestId("ro-lab-note").textContent;
+    expect(note).not.toMatch(/a user not linked,/, "the refusals list must not name a user not linked");
+    expect(note).toMatch(/began no run \(a user not linked yet,/, "the no-run list names a user not linked yet");
+  });
+  it("the on-page note names the four refusals the policy makes, and the panel's stdout text says one line per recorded row", async () => {
+    serve({ [url("act-abc123-1")]: reply({ record: recordOf("act-abc123-1", "The mock Privilege policy granted it.") }) });
+    render(<RunObs head={{ runId: "act-abc123-1" }} />);
+    await waitFor(() => expect(screen.getByTestId("ro-wrap")).toBeTruthy());
+    const note = screen.getByTestId("ro-lab-note").textContent;
+    expect(note).toMatch(/the permission set is already held/);
+    expect(note).toMatch(/needs a licence the user does not hold/);
+    expect(note).toMatch(/the licence does not match/);
+    expect(note).toMatch(/the policy is not active/);
+    const body = document.body.textContent;
+    expect(body).not.toMatch(/one line per policy-point decision/);
+    expect(body).toMatch(/Any other action writes unclear/, "a non-policy action writes a line marked unclear");
+  });
   it("an answer that is not a record (a proxy's HTML page): an alert, never an empty panel, and the previous record is not shown", async () => {
     serve({ [url("act-abc123-1")]: reply({ error: "bad_response" }, { ok: false, status: 502 }) });
     render(<RunObs head={{ runId: "act-abc123-1" }} />);
