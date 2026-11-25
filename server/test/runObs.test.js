@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertRunObservability, classify, layerMatchers } from '../src/runObservability.js';
-import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, policyRefusalEvents, recordOf } from '../src/runObs.js';
+import { KEEP_RUNS, NO_LONGER_KEPT, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, policyRefusalEvents, recordOf } from '../src/runObs.js';
 import { createApp } from '../src/app.js';
 import { createWorkspaces } from '../src/workspaces.js';
 import { startHttpServer } from '../src/app.js';
@@ -67,6 +67,15 @@ test('every value of a line survives the sanitiser: a hostile actor or run id ca
   assert.match(line, LINE);
 });
 
+test('a matcher word in an actor is masked on the line, and the classify check reads the whole line (no field is cut out)', () => {
+  const at = '2026-11-24T10:00:00.000Z';
+  const line = decisionLine({ at, step: 'policy_grant', layer: 'privilege', outcome: 'allowed', who: 'pu-token-x', message: 'x' }, 'act-abc123-1');
+  assert.equal(line.split(' ').find((f) => f.startsWith('actor=')), 'actor=pu-_-x', 'the matcher word is replaced in the field');
+  assert.doesNotMatch(line, WORDS);
+  noMatcherReads(line);
+  assert.match(line, LINE);
+});
+
 test('the log keeps the last few runs, oldest first, and Reset clears it', () => {
   const { runLog } = capture();
   for (let i = 0; i < KEEP_RUNS + 3; i += 1) runLog.mock(() => [opEvents({ op: 'policy.grant', params: {}, result: { policyId: `pol-${i}` }, auditText: 'x' })[0]]);
@@ -80,6 +89,12 @@ test('a throwing writer drops its own line only, and the run stays reachable', (
   const id = runLog.mock(() => [...opEvents({ op: 'policy.grant', params: {}, result: { policyId: 'pol-1' }, auditText: 'x' }), ...callEvents([{ method: 'POST', path: '/x', status: 201 }])]);
   assert.ok(id, 'the run is stored even though a line write threw');
   assert.ok(runLog.get(id), 'reachable by id');
+});
+
+test('a policy.grant outcome with no receipt is still a grant decision (the row names the grant, not a receipt check)', () => {
+  const [g] = opEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a' }, result: {}, auditText: 'granted' });
+  assert.equal(g.detail.policy.decision, 'grant');
+  assert.equal(g.outcome, 'allowed');
 });
 
 test('the chain view: the grant row carries the person and the permission set, and the policy node builds', async () => {
@@ -109,11 +124,12 @@ test('the Salesforce call step names no matcher word: the token endpoint line is
 });
 
 test('a policy refusal of a grant or a revoke is a refused Privilege row; input, lookup and capacity refusals are not decisions', () => {
-  const [g] = policyRefusalEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a' }, code: 'user_not_linked', message: 'Only a linked user can be granted a permission' });
+  const [g] = policyRefusalEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a' }, code: 'needs_permission_set_license', message: 'The permission set needs a licence' });
   assert.equal(g.layer, 'privilege');
   assert.equal(g.outcome, 'refused');
   assert.equal(g.detail.policy.decision, 'grant');
-  assert.equal(g.detail.reason, 'user_not_linked');
+  assert.equal(g.detail.reason, 'needs_permission_set_license');
+  assert.deepEqual(policyRefusalEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a' }, code: 'user_not_linked', message: 'Only a linked user can be granted a permission' }), [], 'a user not linked yet is the lab\'s own stop (a precondition), not a policy decision');
   const [support] = policyRefusalEvents({ op: 'support.requestAccess', params: {}, code: 'license_mismatch', message: 'License x != y' });
   assert.equal(support.step, 'support_requestAccess');
   const [rev] = policyRefusalEvents({ op: 'policy.delete', params: { policyId: 'pol-1' }, code: 'policy_not_active', message: 'already ended' });
@@ -162,6 +178,31 @@ test('over the API: an action answers its run id, the record route answers that 
     // A bad runId and an unknown query parameter are refused.
     assert.equal((await fetch(`${url.replace(/\/$/, '')}/api/actions/run?runId=nope`)).status, 400);
     assert.equal((await fetch(`${url.replace(/\/$/, '')}/api/actions/run?runId=${encodeURIComponent(clock.body.run.id)}&x=1`)).status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test('the record route answers a run the lab no longer keeps (no crash), and Reset clears only its own workspace', async () => {
+  const { runLog } = capture();
+  const workspaces = createWorkspaces();
+  const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ configFile: '/nonexistent/customer.config.json', workspaces, runLog }) });
+  const base = url.replace(/\/$/, '');
+  const headers = (id) => ({ 'content-type': 'application/json', 'x-workspace': id });
+  const get = (id, ws) => fetch(`${base}/api/actions/run?runId=${encodeURIComponent(id)}`, { headers: { 'x-workspace': ws } }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  try {
+    const gone = await get('act-000000-999', 'ws-a');
+    assert.equal(gone.status, 200);
+    assert.equal(gone.body.record, null);
+    assert.equal(gone.body.message, NO_LONGER_KEPT);
+    const act = (ws) => fetch(`${base}/api/actions`, { method: 'POST', headers: headers(ws), body: JSON.stringify({ op: 'clock.advance', params: { minutes: 5 } }) }).then((r) => r.json());
+    const runA = await act('ws-a');
+    const runB = await act('ws-b');
+    assert.ok(runA.run?.id && runB.run?.id, 'each workspace got its own run');
+    assert.equal((await get(runB.run.id, 'ws-a')).body.record, null, 'a run is not readable from another workspace');
+    assert.equal((await fetch(`${base}/api/reset`, { method: 'POST', headers: headers('ws-a') })).status, 200);
+    assert.equal((await get(runA.run.id, 'ws-a')).body.record, null, 'Reset clears this workspace\'s runs');
+    assert.ok((await get(runB.run.id, 'ws-b')).body.record, 'another workspace\'s Reset leaves this workspace\'s run');
   } finally {
     server.close();
   }

@@ -22,7 +22,7 @@ import { overBounds } from './bounds.js';
 import { newTrace, formatTraceparent } from './trace.js';
 import { createRealOrg } from './real.js';
 import { shelfInfo } from './shelfLink.js';
-import { NO_RUN, createRunLog, opEvents, callEvents, policyRefusalEvents, recordOf, reportFailure, runField } from './runObs.js';
+import { NO_LONGER_KEPT, NO_RUN, createRunLog, opEvents, callEvents, policyRefusalEvents, recordOf, reportFailure, runField } from './runObs.js';
 import { RunObsError } from './runObservability.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -178,12 +178,12 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
           ...(req.body.op === 'support.requestAccess' ? { user: st.support?.engineer?.name ?? undefined } : {}),
           ...(req.body.params?.permSetId || r.result?.receipt ? { scopes: [st.privilege?.policies?.find((p) => p.id === r.result?.policyId || p.id === req.body.params?.permSetId)?.setLabel ?? req.body.params?.permSetId].filter(Boolean) } : {}),
         };
-        const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '', chain }), ...callEvents(calls)]);
+        const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '', chain }), ...callEvents(calls)], req.workspaceId);
         head = runId ? runField(runId) : { run: null, runNote: RECORDER_DOWN };
       } else {
         // A refusal the mock policy made is a decision (one refused Privilege row); any other refusal is the lab's own stop and begins no run.
         const refused = policyRefusalEvents({ op: req.body.op, params: req.body.params ?? {}, code: r.code, message: r.message });
-        head = refused.length ? runField(runLog.mock(() => refused)) : NO_RUN;
+        head = refused.length ? runField(runLog.mock(() => [...refused, ...callEvents(calls)], req.workspaceId)) : NO_RUN;
       }
       return respond(req, res, { engine, trace, r, route: '/api/actions', head, calls });
     } catch (e) { return next(e); }
@@ -234,12 +234,12 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
 
   // The record of one run (rule 27), asked for by the id the run's own answer carried. Every run here is Mock (Real mode runs nothing), so the
   // mode cannot mismatch; a run the lab no longer keeps says so instead of showing another.
-  api.get('/actions/run', async (req, res) => {
+  api.get('/actions/run', workspace, async (req, res) => {
     noStore(res);
     if (Object.keys(req.query).some((k) => k !== 'runId')) return res.status(400).json({ error: 'unknown_field', message: 'The query carries a parameter this route does not take' });
     const id = req.query.runId;
     if (typeof id !== 'string' || !RUN_ID.test(id)) return res.status(400).json({ error: 'bad_run_id', message: 'runId must be the id of one run' });
-    const run = runLog.get(id);
+    const run = runLog.get(id, req.workspaceId);
     if (!run) return res.json({ record: null, message: NO_LONGER_KEPT });
     try {
       return res.json({ record: await recordOf(run) });
@@ -250,7 +250,7 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
     }
   });
 
-  api.post('/reset', workspace, (req, res) => { noStore(res); workspaces.reset(req.workspaceId); runLog.clear(); return res.json({ reset: 'ok', workspace: req.workspaceId }); });
+  api.post('/reset', workspace, (req, res) => { noStore(res); workspaces.reset(req.workspaceId); runLog.clear(req.workspaceId); return res.json({ reset: 'ok', workspace: req.workspaceId }); });
   app.get('/api/shelf', (_req, res) => { res.set('Cache-Control', 'no-store'); res.json(shelfInfo()); }); // the header "Shelf" button
   api.use((_req, res) => res.status(404).json({ error: 'not_found', message: 'No such API route' }));
   app.use('/api', api);
