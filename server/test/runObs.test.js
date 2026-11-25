@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertRunObservability, classify, layerMatchers } from '../src/runObservability.js';
-import { KEEP_RUNS, NO_LONGER_KEPT, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, policyRefusalEvents, recordOf } from '../src/runObs.js';
+import { KEEP_RUNS, MAX_WORKSPACES, NO_LONGER_KEPT, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, policyRefusalEvents, recordOf } from '../src/runObs.js';
 import { createApp } from '../src/app.js';
 import { createWorkspaces } from '../src/workspaces.js';
 import { startHttpServer } from '../src/app.js';
@@ -81,6 +81,18 @@ test('the log keeps the last few runs, oldest first, and Reset clears it', () =>
   for (let i = 0; i < KEEP_RUNS + 3; i += 1) runLog.mock(() => [opEvents({ op: 'policy.grant', params: {}, result: { policyId: `pol-${i}` }, auditText: 'x' })[0]]);
   assert.equal(runLog.size(), KEEP_RUNS);
   assert.ok(runLog.get('act-nope-1') === null, 'an unknown id is not found');
+});
+
+test('the workspace cap evicts the least recently used workspace: a workspace that keeps writing is not the one dropped', () => {
+  const runLog = createRunLog({ write: () => {} });
+  const one = () => [opEvents({ op: 'clock.advance', params: {}, result: {}, auditText: 'clock' })[0]];
+  const live = runLog.mock(one, 'live');
+  for (let i = 0; i < MAX_WORKSPACES - 1; i += 1) runLog.mock(one, `ws-${i}`);
+  const again = runLog.mock(one, 'live'); // the live workspace is used again, so it is the most recent
+  runLog.mock(one, 'newcomer'); // past the cap: the least recently used workspace goes, not the live one
+  assert.ok(runLog.get(live, 'live'), 'the first run of the live workspace is still kept');
+  assert.ok(runLog.get(again, 'live'), 'its latest run is still kept');
+  assert.equal(runLog.size('ws-0'), 0, 'the least recently used workspace was evicted');
 });
 
 test('a throwing writer drops its own line only, and the run stays reachable', () => {

@@ -123,7 +123,7 @@ export function decisionLine(ev, runId) {
 // A run is stored BEFORE its lines are written, so a writer that throws leaves it reachable; each line is written in its own try, so one failed
 // write drops one line. Every run here is source 'mock': Real mode is read-only and runs nothing. Each workspace has its own list, so one
 // workspace's Reset or its own runs never remove another's; the map itself is bounded (the oldest workspace's list goes past MAX_WORKSPACES).
-const MAX_WORKSPACES = 500; // the same bound createWorkspaces uses
+export const MAX_WORKSPACES = 500; // the same bound createWorkspaces uses
 export function createRunLog({ write = (line) => process.stdout.write(`${line}\n`), clock = Date.now } = {}) {
   const part = crypto.randomBytes(3).toString('hex'); // so an id never repeats after a restart or in another process
   let made = 0;
@@ -137,8 +137,9 @@ export function createRunLog({ write = (line) => process.stdout.write(`${line}\n
         const events = build();
         const at = new Date(clock()).toISOString();
         const run = { id: `act-${part}-${++made}`, source: 'mock', startedAt: at, endedAt: at, events: events.map((e, seq) => ({ ...e, at, seq })), notes: [], partial: false };
-        if (!kept.has(ws) && kept.size >= MAX_WORKSPACES) kept.delete(kept.keys().next().value);
         const list = kept.get(ws) ?? [];
+        kept.delete(ws); // used now, so it moves to the most-recent end of the map
+        if (kept.size >= MAX_WORKSPACES) kept.delete(kept.keys().next().value); // the least recently used workspace goes
         kept.set(ws, list);
         list.push(run);
         while (list.length > KEEP_RUNS) list.shift();
@@ -146,7 +147,11 @@ export function createRunLog({ write = (line) => process.stdout.write(`${line}\n
         return run.id;
       }) ?? null;
     },
-    get(id, ws) { return (kept.get(ws) ?? []).find((r) => r.id === id) || null; },
+    get(id, ws) {
+      const list = kept.get(ws);
+      if (list) { kept.delete(ws); kept.set(ws, list); } // a read is a use too
+      return (list ?? []).find((r) => r.id === id) || null;
+    },
     clear(ws) { kept.delete(ws); },
     size(ws) { return (kept.get(ws) ?? []).length; },
   };
