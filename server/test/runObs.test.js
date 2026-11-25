@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertRunObservability, classify, layerMatchers } from '../src/runObservability.js';
-import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, recordOf } from '../src/runObs.js';
+import { KEEP_RUNS, NO_RUN_BEGAN, SERVICE, createRunLog, decisionLine, lineValue, opEvents, callEvents, policyRefusalEvents, recordOf } from '../src/runObs.js';
 import { createApp } from '../src/app.js';
 import { createWorkspaces } from '../src/workspaces.js';
 import { startHttpServer } from '../src/app.js';
@@ -99,8 +99,32 @@ test('the chain view: the grant row carries the person and the permission set, a
   assert.equal(bare.chain, null);
 });
 
-test('over the API: an action answers its run id, the record route answers that record, and a refused action begins no run', async () => {
-  const { runLog } = capture();
+test('the Salesforce call step names no matcher word: the token endpoint line is clean', () => {
+  const [row] = callEvents([{ method: 'POST', path: '/services/oauth2/token', status: 400 }]);
+  const line = decisionLine({ ...row, at: new Date().toISOString() }, 'act-abc123-1');
+  assert.doesNotMatch(line, WORDS);
+  noMatcherReads(line);
+  assert.match(line, LINE);
+});
+
+test('a policy refusal of a grant or a revoke is a refused Privilege row; input, lookup and capacity refusals are not decisions', () => {
+  const [g] = policyRefusalEvents({ op: 'policy.grant', params: { privilegeUserId: 'pu-a' }, code: 'user_not_linked', message: 'Only a linked user can be granted a permission' });
+  assert.equal(g.layer, 'privilege');
+  assert.equal(g.outcome, 'refused');
+  assert.equal(g.detail.policy.decision, 'grant');
+  assert.equal(g.detail.reason, 'user_not_linked');
+  const [support] = policyRefusalEvents({ op: 'support.requestAccess', params: {}, code: 'license_mismatch', message: 'License x != y' });
+  assert.equal(support.step, 'support_requestAccess');
+  const [rev] = policyRefusalEvents({ op: 'policy.delete', params: { policyId: 'pol-1' }, code: 'policy_not_active', message: 'already ended' });
+  assert.equal(rev.detail.policy.decision, 'revoke');
+  for (const code of ['workspace_full', 'unknown_field', 'unknown_permission', 'bad_end_time', 'unknown_policy']) {
+    assert.deepEqual(policyRefusalEvents({ op: 'policy.grant', params: {}, code, message: 'x' }), [], `${code} began no run`);
+  }
+  assert.deepEqual(policyRefusalEvents({ op: 'sf.createApp', params: {}, code: 'eca_exists', message: 'x' }), [], 'configuration is never a policy refusal');
+});
+
+test('over the API: an action answers its run id, the record route answers that record, a policy refusal is a refused row and an input refusal begins no run', async () => {
+  const { lines, runLog } = capture();
   const workspaces = createWorkspaces();
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ configFile: '/nonexistent/customer.config.json', workspaces, runLog }) });
   try {
@@ -113,10 +137,20 @@ test('over the API: an action answers its run id, the record route answers that 
     const clock = await act('clock.advance', { minutes: 5 });
     assert.equal(clock.status, 200);
     assert.ok(clock.body.run?.id, 'a run id answers a run action');
+    // A policy refusal (the user is not linked) is the mock Privilege policy's decision: a refused row, with a run.
     const grant = await act('policy.grant', { privilegeUserId: 'pu-a', permSetId: 'ps-4', durationMin: 60 });
     assert.notEqual(grant.status, 200, 'no app yet: the grant is refused');
-    assert.equal(grant.body.run, null, 'a refusal before anything ran begins no run');
-    assert.equal(grant.body.runNote, NO_RUN_BEGAN);
+    assert.ok(grant.body.run?.id, 'a policy refusal is a decision, so it has a run');
+    const refused = await fetch(`${url.replace(/\/$/, '')}/api/actions/run?runId=${encodeURIComponent(grant.body.run.id)}`).then((r) => r.json());
+    const refusedRow = refused.record.rows.find((r) => r.layer === 'privilege' && r.origin !== 'not-logged');
+    assert.equal(refusedRow.outcome, 'refused');
+    assert.deepEqual(assertRunObservability(refused.record), []);
+    assert.ok(lines.some((l) => /layer=privilege actor=\S+ result=stopped run=/.test(l)), 'the refusal writes one stopped stdout line');
+    // An input refusal (a field the lab does not take) began no run.
+    const bad = await act('policy.grant', { bogus: 1 });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.body.run, null, 'a validation refusal begins no run');
+    assert.equal(bad.body.runNote, NO_RUN_BEGAN);
     // The record of the clock run.
     const rec = await fetch(`${url.replace(/\/$/, '')}/api/actions/run?runId=${encodeURIComponent(clock.body.run.id)}`).then(async (r) => ({ status: r.status, body: await r.json() }));
     assert.equal(rec.status, 200);
