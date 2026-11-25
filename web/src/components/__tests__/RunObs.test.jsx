@@ -76,7 +76,7 @@ describe("the states around the panel", () => {
     expect(note).toMatch(/the policy is not active/);
     const body = document.body.textContent;
     expect(body).not.toMatch(/one line per policy-point decision/);
-    expect(body).toMatch(/result=unclear/, "a non-policy action writes a line marked unclear");
+    expect(body).toMatch(/Any other action writes unclear/, "a non-policy action writes a line marked unclear");
   });
   it("an answer that is not a record (a proxy's HTML page): an alert, never an empty panel, and the previous record is not shown", async () => {
     serve({ [url("act-abc123-1")]: reply({ error: "bad_response" }, { ok: false, status: 502 }) });
