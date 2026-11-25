@@ -12,8 +12,9 @@
 // (engine._call) is the Resource server layer's row: what the mock org answered, information, never a second decision.
 //
 // Stdout line: `<iso> salesforce-privilege-lab decision step=<step> layer=<layer> actor=<who> result=passed|stopped|unclear run=<id>`, one per
-// decision, stamped with the row's own time. Every value passes through the masker and the line sanitiser; the matcher words the family's readers
-// look for are absent from every field.
+// recorded row of the run, stamped with the row's own time. A grant or a revoke writes passed (allowed) or stopped (refused); any other action,
+// and each Salesforce call, writes unclear (information, not a decision). Every value passes through the masker and the line sanitiser; the matcher
+// words the family's readers look for are absent from every field.
 import crypto from 'node:crypto';
 import { createMasker, createRunObservability, LAYERS } from './runObservability.js';
 
