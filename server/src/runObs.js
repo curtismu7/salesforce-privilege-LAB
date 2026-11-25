@@ -93,11 +93,24 @@ function actorOf(op, params, result) {
 // The Salesforce call the engine made for this op (engine._call), as a Resource server row: what the mock org answered. Information.
 export function callEvents(calls) {
   return (calls || []).slice(0, 10).map((c, i) => ({
-    layer: 'resource', product: PRODUCT.resource, step: `sf_${lineValue((c.path || '').split('/').filter(Boolean).join('_'), 40) || 'call'}`,
+    layer: 'resource', product: PRODUCT.resource, step: `sf_call_${i + 1}`,
     outcome: 'info', who: 'privilege-app',
     message: `The mock Salesforce org answered ${c.method} ${c.path} with ${c.status}. This is the org's answer to the call Privilege made, not a policy decision.`,
     detail: { method: c.method, path: c.path, status: c.status, callSeq: i },
   }));
+}
+
+// A policy refusal of a grant or a revoke is the mock Privilege policy's own decision (the user is not linked, the set is already held, the licence or
+// the policy state does not allow it): one refused row. Input, lookup and capacity refusals are the lab's own stop and begin no run.
+const POLICY_REFUSALS = new Set(['user_not_linked', 'already_has_permission_set', 'needs_permission_set_license', 'license_mismatch', 'policy_not_active']);
+export function policyRefusalEvents({ op, params, code, message }) {
+  if (!POLICY_OPS.has(op) || !POLICY_REFUSALS.has(code)) return [];
+  const decision = op === 'policy.delete' ? 'revoke' : 'grant';
+  return [{
+    layer: 'privilege', product: PRODUCT.privilege, step: STEP_OF(op), outcome: 'refused', who: actorOf(op, params, null),
+    message: `${message} The mock Privilege policy refused this ${decision}.`,
+    detail: { op, reason: code, policy: { product: 'lab mock Privilege policy', decision, id: params?.policyId ?? null } },
+  }];
 }
 
 // ---- Stdout lines ------------------------------------------------------------------------------------------------------------------------------------

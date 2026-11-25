@@ -22,7 +22,7 @@ import { overBounds } from './bounds.js';
 import { newTrace, formatTraceparent } from './trace.js';
 import { createRealOrg } from './real.js';
 import { shelfInfo } from './shelfLink.js';
-import { NO_RUN, createRunLog, opEvents, callEvents, recordOf, reportFailure, runField } from './runObs.js';
+import { NO_RUN, createRunLog, opEvents, callEvents, policyRefusalEvents, recordOf, reportFailure, runField } from './runObs.js';
 import { RunObsError } from './runObservability.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -181,7 +181,9 @@ export function createApp({ health = createHealth(), configFile = CONFIG, worksp
         const runId = runLog.mock(() => [...opEvents({ op: req.body.op, params: req.body.params ?? {}, result: r.result, auditText: entry?.text ?? '', chain }), ...callEvents(calls)]);
         head = runId ? runField(runId) : { run: null, runNote: RECORDER_DOWN };
       } else {
-        head = NO_RUN;
+        // A refusal the mock policy made is a decision (one refused Privilege row); any other refusal is the lab's own stop and begins no run.
+        const refused = policyRefusalEvents({ op: req.body.op, params: req.body.params ?? {}, code: r.code, message: r.message });
+        head = refused.length ? runField(runLog.mock(() => refused)) : NO_RUN;
       }
       return respond(req, res, { engine, trace, r, route: '/api/actions', head, calls });
     } catch (e) { return next(e); }
