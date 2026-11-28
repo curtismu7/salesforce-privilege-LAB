@@ -88,10 +88,11 @@ describe("Scenarios page", () => {
     }
   }, 60000);
 
-  it("there is no honesty panel, no list of made-up behaviours and no label chip: the banner is the only honesty text", async () => {
+  it("there is no honesty panel, no list of made-up behaviours and no label chip: the modal is the only honesty text", async () => {
     await h.mount({ page: "scenarios" });
     expect(screen.queryByTestId("honesty")).toBeNull(); expect(screen.queryByTestId("labinv-list")).toBeNull(); expect(screen.queryByTestId("not-demonstrated")).toBeNull(); expect(screen.queryByTestId("claims")).toBeNull();
-    expect(screen.getByTestId("banner")).toHaveTextContent("Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.");
+    expect(screen.getByTestId("mode-modal")).toHaveTextContent("Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.");
+    expect(screen.queryByTestId("banner")).toBeNull();
     expect(screen.getByTestId("limits")).toHaveTextContent(/Limits:/);
   });
 

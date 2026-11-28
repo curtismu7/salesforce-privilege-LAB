@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import TopMenu, { applyFontSize } from "./top-menu/TopMenu.jsx";
 import TalkTrackDialog from "./talk-track/TalkTrackDialog.jsx";
+import ModeModal from "./mode-modal/ModeModal.jsx";
 import ModeToggle from "./components/ModeToggle.jsx";
 import ShelfLink from "./components/ShelfLink.jsx";
 import VerifyMark from "./components/VerifyMark.jsx";
@@ -25,8 +26,12 @@ export const PAGES = [
   { id: "diagram", label: "Diagram", View: DiagramPage },
   { id: "real", label: "Real", View: RealPage },
 ];
-// Never blank and never claiming one mode before it is known: until the story answers, it says both, honestly.
-export const BANNER_UNKNOWN = "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.";
+// Real-or-mock modal (shared mode-modal): it replaces the simulation banner, the lab's one honesty text. The words are the old banner's, moved here
+// (the server's story.banner stays, tests pin it). The modal stays off until the mode is known, so it never claims one before it knows.
+export const MODE_LINES = {
+  mock: "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.",
+  real: "Read-only, owner-run: one sign-in (a signed JWT, RS256) to the one Salesforce origin named in this lab's own .env, then a list of that org's permission sets and users. Nothing is granted, changed or deleted, and the private key is write-only and never shown or logged.",
+};
 // Which talk-track items the presenter sees on each page (ids from the story's talkTrack). The Support P1 page shows the beat the world is in.
 const PRESENTER_TALK = { scenarios: ["beat-1", "beat-2", "beat-3"], connect: ["connect"], link: ["link"], grant: ["grant"], diagram: ["grant"], real: [] };
 // One line per page above the content; the Support P1 page shows the story's own intro from the server.
@@ -76,7 +81,6 @@ export default function App() {
   };
 
   const { source, story, info } = lab;
-  const banner = story && source ? story.banner[source] : BANNER_UNKNOWN;
   const View = PAGES.find((p) => p.id === page).View;
   const beat = page === "support" ? beatOf(lab.state?.support) : 0;
   const say = !story ? [] : page === "support" ? story.talkTrack.filter((x) => x.id === `beat-${beat || 1}`) : story.talkTrack.filter((x) => (PRESENTER_TALK[page] || []).includes(x.id));
@@ -108,7 +112,6 @@ export default function App() {
         </TopMenu>
       </header>
       <main className="page">
-        <p className="banner" role="note" data-state={source === "real" ? "live" : "mock"} data-testid="banner">{banner}</p>
         {lab.modeError && <p className="field-error" role="alert" data-testid="mode-error-banner">{lab.modeError}</p>}
         {lab.error && (
           <div className="field-error" role="alert" data-testid="load-error">
@@ -123,6 +126,7 @@ export default function App() {
           {lab.error && !story ? null : !story || !info ? <p className="muted" role="status">Loading...</p> : <View key={`${page}-${lab.epoch}`} lab={lab} />}
         </div>
       </main>
+      <ModeModal mode={source === "real" ? "real" : "mock"} lines={MODE_LINES} suppress={!source} storageKey="sfp-mode" />
       <TalkTrackDialog isOpen={talkOpen} onClose={() => setTalkOpen(false)} talk={story?.talkTrack ?? []} />
     </div>
   );

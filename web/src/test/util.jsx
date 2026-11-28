@@ -21,7 +21,7 @@ export function useLabHarness() {
     if (page) window.location.hash = `#${page}`;
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByTestId("banner");
+    await screen.findByRole("heading", { level: 1 });
     if (!loaded) return user;
     await waitFor(() => { if (!document.querySelector("[data-testid='mode']")) throw new Error("not loaded"); });
     return user;
