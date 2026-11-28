@@ -2,27 +2,59 @@ import { describe, expect, it } from "vitest";
 import { fireEvent } from "@testing-library/react";
 import { REAL_HOST, fakeReal, jsonResponse } from "./harness.js";
 import { LABEL_TEXT, nav, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
+import { MODE_LINES } from "../App.jsx";
 
 const h = useLabHarness();
 const PAGES = ["Support P1", "Scenarios", "Connect", "Link", "Grant and revoke", "Diagram", "Real"];
 const BANNER = "Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.";
 
-describe("shell: banner, header, presenter, talk track", () => {
-  it("shows the simulation banner FIRST in the page on every page", async () => {
+describe("shell: Real-or-mock modal, header, presenter, talk track", () => {
+  it("opens on the MOCK modal with the old banner's sentence, Got it closes it, and no banner is on any page", async () => {
     const user = await h.mount();
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "mock");
+    expect(modal.textContent).toBe(`MOCK${BANNER}Got it`);
+    expect(MODE_LINES.mock).toBe(BANNER);
+    await user.click(screen.getByTestId("mode-modal-ok"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull();
     for (const p of PAGES) {
       await nav(user, p);
-      const main = document.querySelector("main");
-      expect(main.firstElementChild, p).toBe(screen.getByTestId("banner"));
-      expect(text("banner"), p).toBe(BANNER);
+      expect(screen.queryByTestId("banner"), p).toBeNull();
+      expect(document.querySelector("main > .banner"), p).toBeNull();
+      expect(screen.queryByTestId("mode-modal"), p).toBeNull(); // dismissed once for the session
     }
   });
 
-  it("keeps the banner first in presenter mode and shows the talk-track lines for the page", async () => {
+  it("stays off until the mode is known (the lab can start in Real, so MOCK is never guessed), then says REAL for a configured Real lab", async () => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await h.mount({ real: fakeReal(), loaded: false, overrides: { "/api/info": (init, u, pass) => gate.then(pass) } });
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByTestId("mode-modal")).toBeNull(); // /api/info is held
+    release();
+    const modal = await screen.findByTestId("mode-modal");
+    expect(modal).toHaveAttribute("data-mode", "real");
+    expect(modal).toHaveTextContent(/^REAL/);
+    expect(modal.textContent).toContain(MODE_LINES.real);
+  });
+
+  it("the modal dismissed for Mock comes back as REAL when the visitor switches to Real, and a reload in the same session shows nothing", async () => {
+    const user = await h.mount({ real: fakeReal() });
+    expect((await screen.findByTestId("mode-modal")).getAttribute("data-mode")).toBe("real");
+    await user.click(screen.getByTestId("mode-modal-ok"));
+    await user.click(screen.getByTestId("mode-mock"));
+    await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "mock"));
+    await user.click(screen.getByTestId("mode-modal-ok"));
+    await user.click(screen.getByTestId("mode-real"));
+    await waitFor(() => expect(pressed("mode-real")).toBe("true"));
+    expect(screen.queryByTestId("mode-modal")).toBeNull(); // REAL was already dismissed in this session
+  });
+
+  it("keeps no banner in presenter mode and shows the talk-track lines for the page", async () => {
     const user = await h.mount();
     await nav(user, "Link");
     await user.click(screen.getByTestId("presenter"));
-    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
+    expect(screen.queryByTestId("banner")).toBeNull();
     expect(screen.getByTestId("presenter-say")).toHaveTextContent(/email is the key/i);
     expect(screen.getByTestId("presenter")).toHaveAttribute("aria-pressed", "true");
     // the key P toggles and Escape leaves
@@ -30,7 +62,7 @@ describe("shell: banner, header, presenter, talk track", () => {
     await waitFor(() => expect(screen.queryByTestId("presenter-say")).toBeNull());
     fireEvent.keyDown(window, { key: "p" });
     expect(screen.getByTestId("presenter")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("banner")).toBeInTheDocument();
+    expect(screen.queryByTestId("banner")).toBeNull();
   });
 
   it("presenter mode on the Support P1 page says the line for the beat the world is in, and moves on with the story", async () => {
@@ -40,7 +72,6 @@ describe("shell: banner, header, presenter, talk track", () => {
     const box = await screen.findByTestId("presenter-say");
     expect(within(box).getByTestId("presenter-beat")).toHaveTextContent("Beat 1 of 3: No access");
     expect(box).toHaveTextContent(/You don't have access to Cases/);
-    expect(document.querySelector("main").firstElementChild).toBe(screen.getByTestId("banner"));
     await user.type(screen.getByTestId("support-note"), "P1 note");
     await user.click(screen.getByTestId("support-request"));
     await waitFor(() => expect(screen.getByTestId("presenter-beat")).toHaveTextContent("Beat 2 of 3: Access for the job"));
@@ -148,13 +179,14 @@ describe("rule 19: the Mock / Real toggle", () => {
   it("follows the server (default Real when configured), then switches Mock and Real both ways, reloading info, story and state each time", async () => {
     const user = await h.mount({ real: fakeReal() });
     expect(pressed("mode-real")).toBe("true");
-    expect(text("banner")).toMatch(/REAL mode: read-only/);
-    expect(screen.getByTestId("banner")).toHaveAttribute("data-state", "live");
+    expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "real");
+    expect(text("mode-modal")).toMatch(/^REALRead-only, owner-run/);
     const before = h.lab.calls.length;
     await user.click(screen.getByTestId("mode-mock"));
     await waitFor(() => expect(pressed("mode-mock")).toBe("true"));
     expect(pressed("mode-real")).toBe("false");
-    expect(text("banner")).toBe(BANNER);
+    await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "mock")); // the mode changed: MOCK shows
+    expect(text("mode-modal")).toBe(`MOCK${BANNER}Got it`);
     let after = h.lab.calls.slice(before);
     expect(after.find((c) => c.path === "/api/mode" && c.method === "POST").body).toEqual({ source: "mock" });
     for (const p of ["/api/info", "/api/story", "/api/state"]) expect(after.some((c) => c.path === p), p).toBe(true);
@@ -166,7 +198,7 @@ describe("rule 19: the Mock / Real toggle", () => {
     after = h.lab.calls.slice(mark);
     expect(after.find((c) => c.path === "/api/mode" && c.method === "POST").body).toEqual({ source: "real" });
     for (const p of ["/api/info", "/api/story", "/api/state"]) expect(after.some((c) => c.path === p), p).toBe(true);
-    expect(text("banner")).toMatch(/REAL mode/);
+    await waitFor(() => expect(screen.getByTestId("mode-modal")).toHaveAttribute("data-mode", "real"));
     expect(screen.getByTestId("mode")).toHaveTextContent("Real");
   });
 
@@ -219,7 +251,8 @@ describe("failure states", () => {
     const user = await h.mount({ loaded: false, overrides: { "/api/state": () => (broken ? jsonResponse(500, { error: "internal_error", message: "The lab hit an unexpected error; nothing was changed" }) : null) } });
     const box = await screen.findByTestId("load-error");
     expect(box).toHaveTextContent(/Could not load the lab \(The lab hit an unexpected error; nothing was changed\)/);
-    expect(screen.getByTestId("banner")).toHaveTextContent(BANNER); // never blank before the mode is known
+    expect(screen.queryByTestId("banner")).toBeNull();
+    expect(screen.queryByText("REAL")).toBeNull(); // the modal never guesses Real after a failed load
     broken = false;
     await user.click(screen.getByTestId("retry"));
     await waitFor(() => expect(screen.getByTestId("mode")).toHaveTextContent("Mock"));

@@ -374,7 +374,7 @@
     {
       "id": "concept-presenter",
       "label": "Presenter mode and the talk track",
-      "description": "Press P for presenter mode (the simulation banner stays) and open the talk track: the three beats of the Support P1 story, then one part per page.",
+      "description": "Press P for presenter mode and open the talk track: the three beats of the Support P1 story, then one part per page.",
       "group": "concept",
       "action": {
         "type": "route",
