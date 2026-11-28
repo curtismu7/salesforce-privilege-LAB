@@ -63,7 +63,7 @@ export default function ScenariosPage({ lab }) {
         <div className="seg" role="group" aria-label="Vertical pack">
           {(story.verticals || []).map((v) => <button key={v} type="button" aria-pressed={lab.vertical === v} onClick={() => lab.setVertical(v)} data-testid={`pack-${v}`}>{v}</button>)}
         </div>
-        <p className="muted">The vertical pack changes only the cast (names, org, permission sets). The mechanics are the same in all three.</p>
+        <p className="muted">The vertical pack changes only the cast (names, org, permission sets). The mechanics are the same in all four.</p>
       </Card>
 
       {real && <p className="field-error" role="note" data-testid="story-real">Real only reads, so a scenario cannot run. Switch to Mock in the header to run one.</p>}

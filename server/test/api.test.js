@@ -30,7 +30,7 @@ test('an action runs on the mock org and answers the result, the whole state, a 
     const r = await act(url, 'wizard.orgUrl', { url: C.castWizardUrl });
     assert.equal(r.status, 200);
     const b = await json(r);
-    assert.equal(b.ok, true); assert.equal(b.source, 'mock'); assert.equal(b.workspace, 'default'); assert.equal(b.vertical, 'finance');
+    assert.equal(b.ok, true); assert.equal(b.source, 'mock'); assert.equal(b.workspace, 'default'); assert.equal(b.vertical, 'airlines');
     assert.equal(b.state.privilege.wizard.orgUrl, `${C.castOrg}-dev-ed.develop.my.salesforce.example`);
     assert.match(r.headers.get('traceparent'), /^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);
     assert.equal(b.hops[0].from, 'browser');
@@ -93,7 +93,7 @@ test('GET /api/state: a peek creates nothing; the vertical changes the cast', as
     assert.equal(s.source, 'mock'); assert.equal(s.vertical, 'health'); assert.equal(s.state.salesforce.host, 'contoso-dev-ed.develop.my.salesforce.example');
     assert.equal(workspaces.size(), 0);
     const f = await json(await get(url, '/api/state?vertical=zzz'));
-    assert.equal(f.vertical, 'finance');
+    assert.equal(f.vertical, 'airlines');
   });
 });
 
@@ -186,7 +186,7 @@ test('the story is served with no label state, only the simulation banner', asyn
     for (const k of ['labels', 'labInvented', 'signInOrder', 'observedLabel', 'claims', 'durations']) assert.ok(!(k in s), k);
     assert.equal(s.banner.mock, 'Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.');
     assert.ok(s.troubleshooting.length >= 12 && s.outcomes.length === 9 && s.talkTrack.length >= 6);
-    assert.deepEqual(s.verticals, ['finance', 'health', 'retail']);
+    assert.deepEqual(s.verticals, ['airlines', 'finance', 'health', 'retail']);
     assert.ok(!('reaper.run' in Object.fromEntries(s.ops.map((o) => [o, 1]))) && !s.ops.includes('drift.revoke') && s.ops.includes('support.requestAccess'));
   });
 });

@@ -9,7 +9,7 @@ const say = (r, what) => r.body?.message || `${what} failed (HTTP ${r.status})`;
  * { source }, then every piece of data is loaded again. `epoch` goes up on a switch, a Reset or a new vertical so a page can start over.
  */
 export default function useLab() {
-  const [vertical, setVerticalState] = useState("finance");
+  const [vertical, setVerticalState] = useState("airlines");
   const [info, setInfo] = useState(null);
   const [story, setStory] = useState(null);
   const [page, setPage] = useState(null); // { source, state } (mock) or { source, real, host } (real)

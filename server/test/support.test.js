@@ -191,7 +191,7 @@ test('the vertical changes the case titles and names, not the mechanics', () => 
     assert.ok(!/\{\{/.test(JSON.stringify(s)), v);
     titles.add(s.cases[0].title);
   }
-  assert.equal(titles.size, 3);
+  assert.equal(titles.size, Object.keys(VERTICALS).length);
 });
 
 test('the scripted scenario ends where it began: Cases denied, receipt Expired / Revoked, in every vertical', () => {

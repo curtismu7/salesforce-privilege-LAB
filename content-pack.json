@@ -93,7 +93,7 @@
     {
       "id": "try-support-p1",
       "label": "Scenario 1: Support P1: no access, access for the job, no access again",
-      "description": "Omar Reyes is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Omar Reyes asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first \"Revoke pending, access still live\", then the assignment is gone and Cases is denied again. The receipt keeps the record.",
+      "description": "Emma Hartley is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Emma Hartley asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first \"Revoke pending, access still live\", then the assignment is gone and Cases is denied again. The receipt keeps the record.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -110,7 +110,7 @@
     {
       "id": "try-happy-path",
       "label": "Scenario 2: Connect, link, grant, revoke",
-      "description": "The whole cycle once, with nothing going wrong: connect the org, link Omar Reyes, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone.",
+      "description": "The whole cycle once, with nothing going wrong: connect the org, link Emma Hartley, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone.",
       "group": "try-it",
       "action": {
         "type": "route",
@@ -411,12 +411,12 @@
     {
       "id": "S01",
       "title": "Support P1: no access, access for the job, no access again",
-      "say": "Omar Reyes is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Omar Reyes asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first \"Revoke pending, access still live\", then the assignment is gone and Cases is denied again. The receipt keeps the record."
+      "say": "Emma Hartley is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Emma Hartley asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first \"Revoke pending, access still live\", then the assignment is gone and Cases is denied again. The receipt keeps the record."
     },
     {
       "id": "S02",
       "title": "Connect, link, grant, revoke",
-      "say": "The whole cycle once, with nothing going wrong: connect the org, link Omar Reyes, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone."
+      "say": "The whole cycle once, with nothing going wrong: connect the org, link Emma Hartley, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone."
     },
     {
       "id": "S03",

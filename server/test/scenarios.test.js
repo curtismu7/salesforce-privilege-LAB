@@ -15,7 +15,7 @@ test('there are at least the required scripted scenarios', () => {
   assert.equal(new Set(ids).size, ids.length, 'ids are unique');
 });
 
-test('every step of every scenario gives the result it says, in all three verticals', () => {
+test('every step of every scenario gives the result it says, in all four verticals', () => {
   for (const [vertical, cast] of Object.entries(VERTICALS)) {
     for (const sc of SCENARIOS) {
       const r = runScenario(cast, sc);
@@ -30,19 +30,21 @@ test('every {{token}} in the story and the scenarios is defined by every vertica
   const text = JSON.stringify(rawStory()) + JSON.stringify(SCENARIOS) + JSON.stringify(PRESETS);
   assert.ok(text.includes('{{cast'), 'the data uses tokens at all');
   for (const [v, cast] of Object.entries(VERTICALS)) assert.deepEqual(unfilled(text, cast), [], v);
-  const keys = Object.keys(VERTICALS.finance).sort();
+  const keys = Object.keys(VERTICALS.airlines).sort();
   for (const [v, cast] of Object.entries(VERTICALS)) assert.deepEqual(Object.keys(cast).sort(), keys, v);
-  assert.deepEqual(Object.keys(VERTICALS).sort(), ['finance', 'health', 'retail']);
+  assert.deepEqual(Object.keys(VERTICALS).sort(), ['airlines', 'finance', 'health', 'retail']);
 });
 
 test('an undefined token is caught', () => {
   assert.deepEqual(unfilled('hello {{castNobody}} and {{castBrand}}', DEFAULT_CAST), ['castNobody']);
 });
 
-test('a filled story has no unfilled token and the three packs differ in names', () => {
+test('a filled story has no unfilled token and the four packs differ in names', () => {
   for (const [v, cast] of Object.entries(VERTICALS)) { const s = JSON.stringify(buildStory(cast, v)); assert.ok(!/\{\{/.test(s), v); }
   assert.notEqual(VERTICALS.finance.castAName, VERTICALS.health.castAName);
   assert.notEqual(VERTICALS.finance.castOrgHost, VERTICALS.retail.castOrgHost);
+  assert.notEqual(VERTICALS.airlines.castAName, VERTICALS.finance.castAName);
+  assert.notEqual(VERTICALS.airlines.castOrgHost, VERTICALS.finance.castOrgHost);
 });
 
 test('the cast is fictional: every email and host is on a .example name (never example.com), no credential-shaped text', () => {
@@ -61,7 +63,7 @@ test('the cast is fictional: every email and host is on a .example name (never e
 });
 
 test('the only honesty text is the simulation banner; every outcome has a cause and a fix; nothing is presented as a Ping statement', () => {
-  const s = buildStory(DEFAULT_CAST, 'finance');
+  const s = buildStory(DEFAULT_CAST, 'airlines');
   assert.equal(s.banner.mock, 'Simulated: every behaviour shown was recorded in one real Privilege and Salesforce run.');
   assert.equal(BANNER.mock, s.banner.mock);
   for (const [id, o] of Object.entries(OUTCOMES)) assert.ok(o.cause && o.fix && !('basis' in o) && !('wording' in o), id);

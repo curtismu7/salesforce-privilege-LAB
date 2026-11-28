@@ -8,7 +8,7 @@ import { runOp, tryOp } from '../src/actions.js';
 import { runScenario, scenarioById } from '../src/scenarios.js';
 import { VERTICALS } from '../src/cast.js';
 
-export const C = VERTICALS.finance;
+export const C = VERTICALS.airlines;
 export const newEngine = (cast = C) => new Engine(cast);
 // Run a scenario's setup (a preset) and return the engine: every preset step must be ok.
 export function presetEngine(preset, cast = C) {

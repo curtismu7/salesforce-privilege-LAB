@@ -20,7 +20,7 @@ What is new:
 - A mock Salesforce org (users, 4 licence seats, permission sets, assignments, an External Client App) and a mock Privilege app (wizard, users, policies, receipts, reconciliation).
 - A JWT-bearer sign-in check with every failure the guide records, each with its cause and exact fix.
 - Link, grant and revoke rules taken from the guide, and the Support P1 story built on them (a mock Cases object per vertical, visible only while the engineer holds the `Case Read Access` assignment).
-- 12 scripted scenarios as data, with `{{cast}}` tokens and three vertical packs (finance, health, retail).
+- 12 scripted scenarios as data, with `{{cast}}` tokens and four vertical packs (airlines, finance, health, retail; airlines, AirGuard Airlines, is the default).
 - An owner-run, read-only **Real** mode: one RS256 JWT-bearer sign-in to the one origin in this lab's own `.env`, then a list of that org's permission sets and users.
 - Not carried over: the six-platform catalogue, approval chains, the credential masker on responses, the AI-guard and agent-gateway probes.
 
@@ -117,7 +117,7 @@ The guide's troubleshooting table is in `GET /api/story` (`troubleshooting`) and
 
 ## Ownership
 
-Owner: curtismu7. One writer per repo. No tenant, org, person or company identifier appears anywhere: people are fictional and their emails are on the org's own `.example` host (for example `omar.reyes@fabrikam.example`), the org lives on a `.example` host. Real mode is for the owner only.
+Owner: curtismu7. One writer per repo. No tenant, org, person or company identifier appears anywhere: people are fictional and their emails are on the org's own `.example` host (for example `emma.hartley@airguard.example`), the org lives on a `.example` host. Real mode is for the owner only.
 
 ## Not done
 

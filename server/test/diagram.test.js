@@ -46,7 +46,7 @@ test('every name x vertical: the shape the page reads, every token filled, only 
     const b = await (await get(url, '/api/diagram?name=connect-and-link&vertical=retail')).json();
     assert.notEqual(JSON.stringify(a.nodes), JSON.stringify(b.nodes));
     // an unknown vertical falls back to the default, like every other route
-    assert.equal((await (await get(url, '/api/diagram?name=connect-and-link&vertical=zzz')).json()).vertical, 'finance');
+    assert.equal((await (await get(url, '/api/diagram?name=connect-and-link&vertical=zzz')).json()).vertical, 'airlines');
   });
 });
 

@@ -3,7 +3,7 @@ import { VERTICALS } from "../../../server/src/cast.js";
 import { screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
-const C = VERTICALS.finance;
+const C = VERTICALS.airlines;
 
 describe("Link page", () => {
   it("before the application exists: Sync is off and says where to go, Add Users is off", async () => {
@@ -97,8 +97,8 @@ describe("Link page", () => {
     await screen.findByTestId("salesforce-users");
     const name = "<img src=x onerror=alert(1)> ‮reversed​";
     await user.type(screen.getByTestId("nu-name"), "<img src=x onerror=alert(1)> ‮reversed", { skipAutoClose: true });
-    await user.type(screen.getByTestId("nu-email"), "x@fabrikam.example");
-    await user.type(screen.getByTestId("nu-username"), "hostile@fabrikam-dev-ed.example");
+    await user.type(screen.getByTestId("nu-email"), "x@airguard.example");
+    await user.type(screen.getByTestId("nu-username"), "hostile@airguard-dev-ed.example");
     await user.click(screen.getByTestId("create-user"));
     const row = await screen.findByTestId("sfu-sfu-4");
     expect(row.textContent).toContain("<img src=x onerror=alert(1)>");

@@ -13,11 +13,11 @@ test('the reset script clears the default workspace (every vertical) and refuses
   const { server, url } = await startHttpServer({ port: 0, host: '127.0.0.1', app: createApp({ health, workspaces, env: {}, real: createRealOrg({}) }) });
   try {
     const base = url.replace(/\/$/, '');
-    const e = workspaces.engine('default', 'finance', DEFAULT_CAST); workspaces.engine('other', 'finance', DEFAULT_CAST);
+    const e = workspaces.engine('default', 'airlines', DEFAULT_CAST); workspaces.engine('other', 'airlines', DEFAULT_CAST);
     e.clockAdvance({ minutes: 30 });
     assert.deepEqual(await reset(base), { reset: 'ok', workspace: 'default' });
-    assert.equal(workspaces.peek('default', 'finance'), null);
-    assert.ok(workspaces.peek('other', 'finance'), 'another workspace is untouched');
+    assert.equal(workspaces.peek('default', 'airlines'), null);
+    assert.ok(workspaces.peek('other', 'airlines'), 'another workspace is untouched');
     await assert.rejects(reset('http://example.invalid:7835'), /loopback only/);
   } finally { health.stop(); await new Promise((r) => server.close(r)); }
 });

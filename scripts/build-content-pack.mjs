@@ -4,13 +4,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_CAST } from '../server/src/cast.js';
+import { DEFAULT_CAST, DEFAULT_VERTICAL } from '../server/src/cast.js';
 import { buildStory } from '../server/src/story.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 export function buildPack() {
-  const story = buildStory(DEFAULT_CAST, 'finance');
+  const story = buildStory(DEFAULT_CAST, DEFAULT_VERTICAL);
   const sid = (n) => `S${String(n).padStart(2, '0')}`;
   const termsFor = (id) => (id.startsWith('fail-') ? ['jwt-signin', 'invalid-grant'] : ({ 'support-p1': ['support-p1', 'permission-set', 'policy-delete', 'receipt'], 'duplicate-email': ['email-match'], 'link-pitfalls': ['email-match', 'seats'], 'grant-rules': ['permission-set'], 'revoke-by-delete': ['policy-delete', 'receipt'], 'happy-path': ['jwt-signin', 'permission-set', 'receipt'] })[id] || ['jwt-signin']);
   return {

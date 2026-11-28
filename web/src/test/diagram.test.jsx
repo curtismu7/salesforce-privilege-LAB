@@ -7,8 +7,8 @@ import { LABEL_ID, LABEL_TEXT, nav, screen, useLabHarness, waitFor } from "./uti
 
 const h = useLabHarness();
 // The page talks to the lab server's REAL /api/diagram (rule 17: diagram-studio data loaded by name); the expectations come from the same data files.
-const DATA = buildDiagram(VERTICALS.finance, "connect-and-link");
-const GR = buildDiagram(VERTICALS.finance, "grant-and-revoke");
+const DATA = buildDiagram(VERTICALS.airlines, "connect-and-link");
+const GR = buildDiagram(VERTICALS.airlines, "grant-and-revoke");
 const N = DATA.steps.length;
 
 describe("Diagram page (rules 5 and 17)", () => {
@@ -17,7 +17,7 @@ describe("Diagram page (rules 5 and 17)", () => {
     await screen.findByTestId("pattern-canvas");
     const call = h.lab.calls.find((c) => c.path === "/api/diagram");
     expect(call.search).toMatch(/name=connect-and-link/);
-    expect(call.search).toMatch(/vertical=finance/);
+    expect(call.search).toMatch(/vertical=airlines/);
     for (const n of DATA.nodes) expect(screen.getByTestId(`pat-node-${n.id}`)).toHaveTextContent(n.label);
     expect(document.querySelectorAll(".react-flow__node").length).toBe(DATA.nodes.length);
     expect(document.querySelector("section.pat").textContent).not.toMatch(LABEL_TEXT);
