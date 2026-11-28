@@ -1,5 +1,5 @@
-// {{token}} templating for the story, the scripted scenarios and the seeded mock org. Tokens are filled from one of three vertical packs
-// (finance, health, retail). A test fails on any token a pack does not define. Every person, org, permission set and host in a pack is
+// {{token}} templating for the story, the scripted scenarios and the seeded mock org. Tokens are filled from one of four vertical packs
+// (airlines, finance, health, retail; airlines is the default). A test fails on any token a pack does not define. Every person, org, permission set and host in a pack is
 // synthetic: people have an email on the org's own .example host, the mock org lives on a .example host, no real company, tenant or account.
 // customer.config.json (optional, git-ignored) may override only the brand.
 import fs from 'node:fs';
@@ -41,6 +41,11 @@ const pack = (o) => {
 };
 
 export const VERTICALS = {
+  airlines: pack({
+    brand: 'AirGuard Airlines', org: 'airguard', admin: ['Priya Nair', 'priya.nair'], a: ['Emma Hartley', 'emma.hartley'],
+    d1: ['Noah Reyes', 'noah.reyes'], d2: ['Noah Reyes (contractor)', 'noah.reyes'], c: ['Grace Okafor', 'grace.okafor'],
+    f: ['Dana Olsen', 'dana.olsen', 'dana.olsen.sf'], cases: [['Check-in kiosks are down at the main terminal', 'Terminal Operations'], ['Booking engine times out at peak sales', 'Reservations Desk'], ['Loyalty points are missing after a flight', 'Gold-tier Members']], licensedSet: 'Service Cloud Einstein', otherSet: 'Community Moderator',
+  }),
   finance: pack({
     brand: 'Fabrikam Bank', org: 'fabrikam', admin: ['Maya Chen', 'maya.chen'], a: ['Omar Reyes', 'omar.reyes'],
     d1: ['Priya Nair', 'priya.nair'], d2: ['Priya Nair (contractor)', 'priya.nair'], c: ['Lee Park', 'lee.park'],
@@ -57,7 +62,7 @@ export const VERTICALS = {
     f: ['Raj Patel', 'raj.patel', 'raj.patel.sf'], cases: [['Every gift card is declined at the flagship checkout', 'Flagship Store 12'], ['Order status page shows yesterday\'s data', 'Online Orders'], ['Add a size chart to the returns email', 'Returns Team']], licensedSet: 'Retail Analytics Plus', otherSet: 'Community Moderator',
   }),
 };
-export const DEFAULT_VERTICAL = 'finance';
+export const DEFAULT_VERTICAL = 'airlines';
 export const DEFAULT_CAST = VERTICALS[DEFAULT_VERTICAL];
 
 export const unfilled = (text, cast) => [...String(text).matchAll(TOKEN)].map((m) => m[1]).filter((k) => !Object.hasOwn(cast, k));

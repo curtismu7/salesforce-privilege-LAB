@@ -42,7 +42,7 @@ export async function startLab({ real, overrides = {} } = {}) {
     ws: () => workspaceId(),
     // A request outside the page (seeding a world), in the page's own workspace.
     post: (path, payload) => nativeFetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", origin: base, "x-workspace": workspaceId() }, body: JSON.stringify(payload) }).then((r) => r.json()),
-    seed: (id, upTo, vertical = "finance") => nativeFetch(`${base}/api/scenarios/${id}/run`, { method: "POST", headers: { "content-type": "application/json", origin: base, "x-workspace": workspaceId() }, body: JSON.stringify({ vertical, upTo }) }).then((r) => r.json()),
+    seed: (id, upTo, vertical = "airlines") => nativeFetch(`${base}/api/scenarios/${id}/run`, { method: "POST", headers: { "content-type": "application/json", origin: base, "x-workspace": workspaceId() }, body: JSON.stringify({ vertical, upTo }) }).then((r) => r.json()),
     stop: async () => { globalThis.fetch = nativeFetch; health.stop(); await new Promise((res) => server.close(res)); },
   };
 }

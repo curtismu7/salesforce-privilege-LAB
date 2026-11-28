@@ -5,7 +5,7 @@ import { VERTICALS } from "../../../server/src/cast.js";
 import { LABEL_ID, LABEL_TEXT, nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
-const C = VERTICALS.finance;
+const C = VERTICALS.airlines;
 
 // For each scripted scenario, the first sign-in the script EXPECTS to be refused: its index (the world is seeded up to just before it) and its inputs.
 const refusals = SCENARIOS.flatMap((sc) => {

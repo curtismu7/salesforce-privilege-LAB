@@ -6,13 +6,13 @@ import { LABEL_ID, LABEL_TEXT, nav, screen, text, useLabHarness, waitFor, within
 const h = useLabHarness();
 
 describe("Scenarios page", () => {
-  it("lists the 12 scripted scenarios (the Support P1 story first) and the three vertical packs", async () => {
+  it("lists the 12 scripted scenarios (the Support P1 story first) and the four vertical packs", async () => {
     await h.mount({ page: "scenarios" });
     const cards = SCENARIOS.map((s) => screen.getByTestId(`scenario-${s.id}`));
     expect(cards).toHaveLength(12);
     expect(cards[0]).toHaveTextContent("Scenario 1 of 12"); expect(cards[0]).toHaveTextContent("Support P1");
-    for (const v of ["finance", "health", "retail"]) expect(screen.getByTestId(`pack-${v}`)).toBeInTheDocument();
-    expect(screen.getByTestId("pack-finance")).toHaveAttribute("aria-pressed", "true");
+    for (const v of ["airlines", "finance", "health", "retail"]) expect(screen.getByTestId(`pack-${v}`)).toBeInTheDocument();
+    expect(screen.getByTestId("pack-airlines")).toHaveAttribute("aria-pressed", "true");
     expect(document.querySelector("main").textContent).not.toMatch(LABEL_TEXT);
     expect(screen.queryByTestId("claim-tag")).toBeNull(); expect(screen.queryByTestId(LABEL_ID("~"))).toBeNull();
   });
@@ -20,11 +20,11 @@ describe("Scenarios page", () => {
   it("the pack picker changes the cast in the scenario text", async () => {
     const user = await h.mount({ page: "scenarios" });
     await user.click(screen.getByTestId("scenario-happy-path"));
-    expect(screen.getByTestId("scenario-panel")).toHaveTextContent("Omar Reyes");
+    expect(screen.getByTestId("scenario-panel")).toHaveTextContent("Emma Hartley");
     await user.click(screen.getByTestId("pack-health"));
     await waitFor(() => expect(screen.getByTestId("pack-health")).toHaveAttribute("aria-pressed", "true"));
     await user.click(await screen.findByTestId("scenario-happy-path"));
-    expect(screen.getByTestId("scenario-panel")).not.toHaveTextContent("Omar Reyes");
+    expect(screen.getByTestId("scenario-panel")).not.toHaveTextContent("Emma Hartley");
   });
 
   it("Run shows step 1; Next step adds one at a time with the expected result and the raw request and response", async () => {

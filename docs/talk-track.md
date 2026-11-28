@@ -6,11 +6,11 @@
 
 ## Beat 1: no access
 
-Omar Reyes is a support engineer at Fabrikam Bank with the Minimum Access profile and nothing else. Open Cases in the mock Salesforce: "You don't have access to Cases" (the lab's mock wording). No case titles, no counts. Case Read Access is the lab's example permission set, with the same mechanics as the guide's Account Read Access. Nobody has to remember to take anything away, because nothing was given.
+Emma Hartley is a support engineer at AirGuard Airlines with the Minimum Access profile and nothing else. Open Cases in the mock Salesforce: "You don't have access to Cases" (the lab's mock wording). No case titles, no counts. Case Read Access is the lab's example permission set, with the same mechanics as the guide's Account Read Access. Nobody has to remember to take anything away, because nothing was given.
 
 ## Beat 2: access for the job
 
-A P1 lands. Omar Reyes makes a request in the lab with a note and an end time (the lab's own step; the lab does not claim Privilege stores the note), and Privilege grants Case Read Access with that end date. Cases now shows three cases with the P1 on top, because the mock Salesforce really holds the assignment. The receipt says Granted and the reconciliation reads 1 confirmed. When the P1 is fixed, End access deletes the policy: it reads "Revoke pending, access still live", the cases are still listed and the reconciliation line is still the last refresh. We are still in beat 2 until you press Refresh receipts: in the guide the removal is queued and a refresh shows it.
+A P1 lands. Emma Hartley makes a request in the lab with a note and an end time (the lab's own step; the lab does not claim Privilege stores the note), and Privilege grants Case Read Access with that end date. Cases now shows three cases with the P1 on top, because the mock Salesforce really holds the assignment. The receipt says Granted and the reconciliation reads 1 confirmed. When the P1 is fixed, End access deletes the policy: it reads "Revoke pending, access still live", the cases are still listed and the reconciliation line is still the last refresh. We are still in beat 2 until you press Refresh receipts: in the guide the removal is queued and a refresh shows it.
 
 ## Beat 3: no access again, and a receipt
 
@@ -22,16 +22,16 @@ Privilege signs in as one integration user with a signed JWT. That works only if
 
 ## Link: the email is the key
 
-Privilege links a person only when the email is identical, and refuses when two Privilege records share it ("its email matches 2 Privilege users"). Priya Nair and Priya Nair (contractor) share an email, so neither links; Omar Reyes is unique and links on the first Sync. A Federation ID did not rescue it in the one test run.
+Privilege links a person only when the email is identical, and refuses when two Privilege records share it ("its email matches 2 Privilege users"). Noah Reyes and Noah Reyes (contractor) share an email, so neither links; Emma Hartley is unique and links on the first Sync. A Federation ID did not rescue it in the one test run.
 
 ## Grant and revoke
 
-Grant Case Read Access to Omar Reyes with a duration. The receipt says Granted and the reconciliation reads 1 confirmed. The grant dialog showed four things: a plain set, one that needs a permission set license, one the user already holds, and one under a different user licence (License Salesforce ≠ Cloud Integration User). To revoke, delete the policy: there is no Revoke button. The policy reads "Revoke pending, access still live" until the receipts are refreshed, then the receipt reads Expired / Revoked.
+Grant Case Read Access to Emma Hartley with a duration. The receipt says Granted and the reconciliation reads 1 confirmed. The grant dialog showed four things: a plain set, one that needs a permission set license, one the user already holds, and one under a different user licence (License Salesforce ≠ Cloud Integration User). To revoke, delete the policy: there is no Revoke button. The policy reads "Revoke pending, access still live" until the receipts are refreshed, then the receipt reads Expired / Revoked.
 
 ## The scripted scenarios (Mock mode)
 
-1. **Support P1: no access, access for the job, no access again.** Omar Reyes is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Omar Reyes asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first "Revoke pending, access still live", then the assignment is gone and Cases is denied again. The receipt keeps the record.
-2. **Connect, link, grant, revoke.** The whole cycle once, with nothing going wrong: connect the org, link Omar Reyes, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone.
+1. **Support P1: no access, access for the job, no access again.** Emma Hartley is a support engineer with the Minimum Access profile and no access to Cases. A P1 lands: Emma Hartley asks for Case Read Access with a note and an end time, Privilege grants it, and Cases lists the P1. Ending the access deletes the policy: first "Revoke pending, access still live", then the assignment is gone and Cases is denied again. The receipt keeps the record.
+2. **Connect, link, grant, revoke.** The whole cycle once, with nothing going wrong: connect the org, link Emma Hartley, grant Case Read Access for a window, see it in Salesforce, delete the policy and see it gone.
 3. **Sign-in fails: invalid_client_id.** The Consumer Key was copied wrongly. Salesforce answers invalid_client_id; copy it again.
 4. **Sign-in fails: not propagated yet.** Everything is right, but the app was only just created. invalid_grant, "user hasn't approved this consumer", until the lab clock has moved forward a few minutes.
 5. **Sign-in fails: not pre-authorized.** Permitted Users was left at "All users can self-authorize", which does not work for JWT. invalid_grant.

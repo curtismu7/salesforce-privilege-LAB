@@ -93,7 +93,7 @@ export default function App() {
           {PAGES.map((p) => <a key={p.id} href={`#${p.id}`} aria-current={page === p.id ? "page" : undefined} onClick={(e) => { e.preventDefault(); select(p.id); }}>{p.label}</a>)}
         </nav>
         <TopMenu
-          vertical={{ value: lab.vertical, onChange: lab.setVertical, options: story ? story.verticals : ["finance"] }}
+          vertical={{ value: lab.vertical, onChange: lab.setVertical, options: story ? story.verticals : ["airlines"] }}
           theme={{ value: theme, onChange: pickTheme }}
           fontSize={{ value: fontStep, onChange: setFontStep }}
           present={{ active: presenter, onToggle: () => setPresenter((v) => !v), label: "Presenter (P)" }}

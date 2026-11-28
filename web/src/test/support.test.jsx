@@ -3,7 +3,7 @@ import { VERTICALS } from "../../../server/src/cast.js";
 import { nav, screen, text, useLabHarness, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
-const C = VERTICALS.finance;
+const C = VERTICALS.airlines;
 const ready = async () => { await screen.findByTestId("cases-denied"); await waitFor(() => expect(screen.getByTestId("support-note")).not.toBeDisabled()); };
 const request = async (user, note = "P1: need the case history") => {
   await waitFor(() => expect(screen.getByTestId("support-note")).not.toBeDisabled());
@@ -23,7 +23,7 @@ describe("Support P1 page: three panels together", () => {
     const sf = screen.getByTestId("sf-panel");
     for (const t of [C.castCaseP1Title, C.castCase2Title, C.castCase3Title, "00001041"]) expect(sf).not.toHaveTextContent(t);
     expect(sf.textContent).not.toMatch(/\b[0-3]\s+cases\b|\(\d+\)/i);
-    expect(text("sf-user")).toContain("Omar Reyes"); expect(text("sf-user")).toContain("Minimum Access - Salesforce");
+    expect(text("sf-user")).toContain("Emma Hartley"); expect(text("sf-user")).toContain("Minimum Access - Salesforce");
     expect(text("sf-held")).toBe("none");
     expect(screen.getByTestId("beat-1")).toHaveAttribute("aria-current", "step");
     expect(screen.getByTestId("support-end-access")).toBeDisabled();
@@ -41,7 +41,7 @@ describe("Support P1 page: three panels together", () => {
     expect(text("sf-held")).toBe(C.castPermSet);
     expect(screen.queryByTestId("cases-denied")).toBeNull();
     expect(screen.getByTestId("beat-2")).toHaveAttribute("aria-current", "step");
-    expect(text("support-last-request")).toMatch(/Omar Reyes asked for Case Read Access until 2026-11-02 11:\d\d UTC/);
+    expect(text("support-last-request")).toMatch(/Emma Hartley asked for Case Read Access until 2026-11-02 11:\d\d UTC/);
     expect(text("support-last-note")).toBe("P1: need the case history");
     // the engineer's request lives in the engineer's own card, never in the Privilege panel (Privilege does not store it in this lab)
     expect(within(screen.getByTestId("request-card")).getByTestId("support-last-note")).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("Support P1 page: three panels together", () => {
     await ready();
     const before = screen.getByTestId("oldway-panel").textContent;
     expect(text("oldway-tag")).toBe("Narrative: not a Privilege claim");
-    expect(before).toMatch(/no end date/i); expect(before).toContain("Omar Reyes");
+    expect(before).toMatch(/no end date/i); expect(before).toContain("Emma Hartley");
     await request(user);
     await screen.findByTestId("cases-list");
     expect(screen.getByTestId("oldway-panel").textContent).toBe(before);
@@ -125,7 +125,7 @@ describe("Support P1 page: three panels together", () => {
   it("Privilege cannot sign in to Salesforce: a named 502 with the cause and fix, and nothing is granted", async () => {
     const user = await h.mount();
     await ready();
-    await h.lab.post("/api/actions", { op: "sf.setPermittedUsers", params: { policy: "self_authorize" }, vertical: "finance" });
+    await h.lab.post("/api/actions", { op: "sf.setPermittedUsers", params: { policy: "self_authorize" }, vertical: "airlines" });
     await request(user);
     const box = await screen.findByTestId("support-refusal");
     expect(box).toHaveTextContent("salesforce_sign_in_failed");
@@ -157,7 +157,7 @@ describe("Support P1 page: three panels together", () => {
     await user.click(screen.getByTestId("support-note"));
     await user.paste("x".repeat(201));
     expect(screen.getByTestId("support-note").value.length).toBe(200);
-    const b = await h.lab.post("/api/actions", { op: "support.requestAccess", params: { note: "x".repeat(201), endAt: "2026-11-02T11:00:00Z" }, vertical: "finance", refusalsAs200: true });
+    const b = await h.lab.post("/api/actions", { op: "support.requestAccess", params: { note: "x".repeat(201), endAt: "2026-11-02T11:00:00Z" }, vertical: "airlines", refusalsAs200: true });
     expect(b.ok).toBe(false); expect(b.error).toBe("too_long");
   });
 

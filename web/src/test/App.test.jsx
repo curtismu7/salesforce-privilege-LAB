@@ -70,12 +70,20 @@ describe("shell: banner, header, presenter, talk track", () => {
     expect(screen.getByTestId("mode")).toHaveTextContent("Mock");
   });
 
+  it("a fresh load is the airlines vertical: AirGuard Airlines on Connect, no earlier brand anywhere on the page", async () => {
+    const user = await h.mount();
+    expect(screen.getByTestId("vertical-select")).toHaveValue("airlines");
+    await nav(user, "Connect");
+    await waitFor(() => expect(document.querySelector("main").textContent).toContain("AirGuard Airlines Privilege"));
+    expect(document.body.textContent).not.toMatch(/Fabrikam|Contoso|Northwind|Meridian|Skyline|Harbor|Vellum/);
+  });
+
   it("switches the vertical pack and the cast follows", async () => {
     const user = await h.mount();
     await nav(user, "Link");
-    expect(await screen.findByTestId("pu-pu-a")).toHaveTextContent("Omar Reyes");
+    expect(await screen.findByTestId("pu-pu-a")).toHaveTextContent("Emma Hartley");
     await user.selectOptions(screen.getByTestId("vertical-select"), "health");
-    await waitFor(() => expect(screen.getByTestId("pu-pu-a")).not.toHaveTextContent("Omar Reyes"));
+    await waitFor(() => expect(screen.getByTestId("pu-pu-a")).not.toHaveTextContent("Emma Hartley"));
   });
 
   it("Reset puts the world back to the start", async () => {

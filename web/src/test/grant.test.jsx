@@ -3,7 +3,7 @@ import { VERTICALS } from "../../../server/src/cast.js";
 import { LABEL_ID, LABEL_TEXT, screen, text, useLabHarness, userEvent, waitFor, within } from "./util.jsx";
 
 const h = useLabHarness();
-const C = VERTICALS.finance;
+const C = VERTICALS.airlines;
 
 async function openGrant(user) {
   await user.click(await screen.findByTestId("open-grant"));
@@ -114,7 +114,7 @@ describe("Grant and revoke page", () => {
 
   it("a downstream failure (Privilege can no longer sign in) is a named refusal in the dialog, not a blank", async () => {
     const user = await h.mount({ seed: ["grant-rules", 0], page: "grant" });
-    await h.lab.post("/api/actions", { op: "sf.setPermittedUsers", params: { policy: "self_authorize" }, vertical: "finance" });
+    await h.lab.post("/api/actions", { op: "sf.setPermittedUsers", params: { policy: "self_authorize" }, vertical: "airlines" });
     await user.click(await screen.findByTestId("grant-sync")); // reload the world (the Sync itself is refused)
     const dlg = await openGrant(user);
     await user.selectOptions(within(dlg).getByTestId("grant-set"), "ps-1");
@@ -128,7 +128,7 @@ describe("Grant and revoke page", () => {
     const user = await h.mount({ seed: ["grant-rules", 0], page: "grant" });
     await screen.findByTestId("permissions");
     // create it in Salesforce on the Connect page's op via the page's own API
-    await h.lab.post("/api/actions", { op: "sf.createPermissionSet", params: { label: "L".repeat(79) }, vertical: "finance" });
+    await h.lab.post("/api/actions", { op: "sf.createPermissionSet", params: { label: "L".repeat(79) }, vertical: "airlines" });
     await user.click(screen.getByTestId("grant-sync"));
     await waitFor(() => expect(screen.getByTestId("permissions")).toHaveTextContent("L".repeat(79)));
     expect(screen.getByTestId("permissions").querySelector(".scroll")).not.toBeNull();
